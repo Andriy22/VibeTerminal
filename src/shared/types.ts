@@ -44,6 +44,8 @@ export interface PaneRuntime {
   paneId: string
   ptyId: string
   cwd: string
+  /** Where the pane's shell actually is now (agents cd into worktrees). */
+  liveCwd?: string
   branch: string | null
   status: PaneStatus
   exitCode?: number
@@ -180,4 +182,6 @@ export type HostControlMessage =
   | { type: 'kill'; ptyId: string }
 
 /** Pty host → main */
-export type HostEventMessage = { type: 'exited'; ptyId: string; exitCode: number }
+export type HostEventMessage =
+  | { type: 'exited'; ptyId: string; exitCode: number }
+  | { type: 'cwd'; ptyId: string; cwd: string }

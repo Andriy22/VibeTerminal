@@ -36,6 +36,7 @@ import {
   fileDiffRange,
   getGitInfo,
   isDirty,
+  listWorktrees,
   pruneWorktrees,
   removeWorktree
 } from './git'
@@ -104,6 +105,9 @@ export class Workspaces {
     })
     ptyHost.on('host-crashed', () => {
       this.respawnAllRunning()
+    })
+    ptyHost.on('pty-cwd', (ptyId: string, cwd: string) => {
+      void this.updatePaneCwd(ptyId, cwd)
     })
   }
 
@@ -715,6 +719,31 @@ export class Workspaces {
       config.wasRunning = this.runtime.has(config.id)
     }
     this.store.save()
+  }
+
+  /** A pane's shell moved — record it and re-resolve the branch it is on. */
+  private async updatePaneCwd(ptyId: string, cwd: string): Promise<void> {
+    for (const [workspaceId, panes] of this.runtime) {
+      for (const pane of panes.values()) {
+        if (pane.ptyId !== ptyId) continue
+        if (pane.liveCwd === cwd) return
+        pane.liveCwd = cwd
+        const config = this.store.getWorkspace(workspaceId)
+        if (config) pane.branch = await this.branchForCwd(config.path, cwd)
+        this.notify()
+        return
+      }
+    }
+  }
+
+  /** Branch shown for a cwd: matching worktree's branch, else the cwd's own branch. */
+  private async branchForCwd(root: string, cwd: string): Promise<string | null> {
+    const worktrees = await listWorktrees(root)
+    const match = worktrees
+      .filter((w) => cwd === w.path || cwd.startsWith(w.path + '/'))
+      .sort((a, b) => b.path.length - a.path.length)[0]
+    if (match) return match.branch ?? 'detached'
+    return (await getGitInfo(cwd)).branch
   }
 
   private findPaneByPtyId(ptyId: string): PaneRuntime | null {

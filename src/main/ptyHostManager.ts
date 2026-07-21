@@ -8,6 +8,7 @@ import type { HostControlMessage, HostEventMessage } from '../shared/types'
  *
  * Emits:
  *  - 'pty-exited' (ptyId, exitCode)  — a pty process ended
+ *  - 'pty-cwd' (ptyId, cwd)          — a pane's shell changed directory
  *  - 'host-crashed'                  — host died; it has been restarted with a
  *                                      fresh renderer port, panes must respawn
  *  - 'renderer-port' (MessagePortMain) — port to forward to the renderer
@@ -25,6 +26,7 @@ export class PtyHostManager extends EventEmitter {
 
     host.on('message', (msg: HostEventMessage) => {
       if (msg.type === 'exited') this.emit('pty-exited', msg.ptyId, msg.exitCode)
+      else if (msg.type === 'cwd') this.emit('pty-cwd', msg.ptyId, msg.cwd)
     })
 
     host.on('exit', () => {

@@ -29,6 +29,7 @@ interface Session {
   fallbackElapsed: boolean
   lastProc: string
   tty: string | null
+  lastCwd: string | null
 }
 
 /**
@@ -65,6 +66,21 @@ function sendToRenderer(message: unknown): void {
  */
 setInterval(() => {
   for (const [ptyId, session] of sessions) {
+    // Live cwd: the top shell's working directory follows the user/agent
+    // around (cd into worktrees). Reported to main only when it changes.
+    execFile(
+      'lsof',
+      ['-a', '-p', String(session.pty.pid), '-d', 'cwd', '-Fn'],
+      (error, stdout) => {
+        if (error || !sessions.has(ptyId)) return
+        const line = stdout.split('\n').find((l) => l.startsWith('n'))
+        const cwd = line?.slice(1)
+        if (cwd && cwd !== session.lastCwd) {
+          session.lastCwd = cwd
+          parentPort.postMessage({ type: 'cwd', ptyId, cwd })
+        }
+      }
+    )
     if (!session.tty) {
       // spawn-time resolution can race shell startup — keep retrying, and
       // report the foreground name meanwhile so the header is never stuck
@@ -124,7 +140,8 @@ function spawn(msg: Extract<HostControlMessage, { type: 'spawn' }>): void {
     resized: false,
     fallbackElapsed: false,
     lastProc: '',
-    tty: null
+    tty: null,
+    lastCwd: null
   }
   sessions.set(msg.ptyId, session)
 

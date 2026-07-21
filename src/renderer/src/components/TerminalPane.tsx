@@ -154,7 +154,8 @@ export default function TerminalPane({
     await window.vibe.restartPane(workspaceId, pane.id)
   }
 
-  const branchLabel = runtime.branch ?? runtime.cwd.split('/').pop() ?? ''
+  const paneCwd = runtime.liveCwd ?? runtime.cwd
+  const branchLabel = runtime.branch ?? paneCwd.split('/').pop() ?? ''
 
   return (
     <section
@@ -185,7 +186,9 @@ export default function TerminalPane({
           {meta.symbol} {meta.label}
         </span>
         <span className="pane-callsign">{callsign(paneIndex)}</span>
-        <span className="pane-branch">{branchLabel}</span>
+        <span className="pane-branch" title={paneCwd}>
+          {branchLabel}
+        </span>
         <span className="pane-spacer" />
         <button
           className="pane-button"

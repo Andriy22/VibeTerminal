@@ -1,12 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
-import type { AgentKind, GitInfo } from '@shared/types'
+import type { AgentKind, GitInfo, IsolationMode } from '@shared/types'
 import { useApp } from '../store'
 import { kindSummary, nextKind } from '../kinds'
 import PathInput from './PathInput'
 import PreviewGrid from './PreviewGrid'
 import Icon from './Icon'
 import Segmented from './Segmented'
-import { IlloAgents, IlloApp, IlloBranches, IlloTools } from './Illustrations'
+import {
+  IlloAgents,
+  IlloApp,
+  IlloBranches,
+  IlloIsolationShared,
+  IlloIsolationWorktrees,
+  IlloTools
+} from './Illustrations'
 
 const COUNTS = [1, 2, 4, 6, 8]
 const COL_OPTIONS: { value: number | null; label: string }[] = [
@@ -41,14 +48,14 @@ const STEPS = [
     ]
   },
   {
-    label: 'Branches',
+    label: 'Isolation',
     icon: 'branch',
-    desc: 'Which branch diffs and reviews compare against.',
+    desc: 'How agents are isolated, and which branch diffs compare against.',
     illo: <IlloBranches />,
     tips: [
-      'Everything runs in your real checkout until you say otherwise.',
-      'Branch off any pane into .worktrees/<task> when work needs isolation.',
-      'Diffs always compare against the base branch you pick here.'
+      'Shared: everything runs in your checkout until a pane branches off with ⑂.',
+      'Worktree per agent: bravo, charlie… start detached in .worktrees/<callsign>.',
+      'Either way, diffs compare against the base branch you pick here.'
     ]
   },
   {
@@ -77,6 +84,7 @@ export default function LauncherModal(): JSX.Element {
   const [count, setCount] = useState(4)
   const [kinds, setKinds] = useState<AgentKind[]>(Array(8).fill('claude'))
   const [cols, setCols] = useState<number | null>(null)
+  const [isolation, setIsolation] = useState<IsolationMode>('shared')
   const [baseBranch, setBaseBranch] = useState('')
   const [yolo, setYolo] = useState(false)
   const [name, setName] = useState('')
@@ -98,6 +106,7 @@ export default function LauncherModal(): JSX.Element {
         const result = await window.vibe.gitInfo(expanded)
         setScan(result)
         setBaseBranch('')
+        if (!result.isRepo || !result.hasCommits) setIsolation('shared')
         if (!nameTouched) {
           setName(expanded.replace(/\/+$/, '').split('/').pop() ?? '')
         }
@@ -131,6 +140,7 @@ export default function LauncherModal(): JSX.Element {
         path: expandedPath,
         panes: kinds.slice(0, count).map((kind) => ({ kind })),
         baseBranch: baseBranch || null,
+        isolation,
         gridCols: cols,
         yolo,
         claudeFlags: claudeFlags.trim() || undefined,
@@ -149,9 +159,12 @@ export default function LauncherModal(): JSX.Element {
     if (folder) setPath(folder)
   }
 
-  const isolationLabel = scan?.isRepo
-    ? 'shared checkout · branch off on demand'
-    : 'shared folder (not a repo)'
+  const repoReady = !!scan?.isRepo && scan.hasCommits
+  const isolationLabel = !scan?.isRepo
+    ? 'shared folder (not a repo)'
+    : isolation === 'worktrees'
+      ? 'worktree per agent (detached @ base)'
+      : 'shared checkout · branch off on demand'
 
   const stepInfo = STEPS[step]
 
@@ -252,16 +265,62 @@ export default function LauncherModal(): JSX.Element {
                   <span className="inline-label">grid columns</span>
                   <Segmented options={COL_OPTIONS} value={cols} onChange={setCols} />
                 </div>
-                <PreviewGrid count={count} kinds={kinds} cols={cols} onCycle={cycleKind} />
+                <PreviewGrid
+                  count={count}
+                  kinds={kinds}
+                  isolation={isolation}
+                  cols={cols}
+                  onCycle={cycleKind}
+                />
                 <div className="git-line dim">Click a cell to switch its agent type.</div>
               </>
             )}
 
             {step === 2 && (
               <>
+                <div className="isolation-cards">
+                  <button
+                    type="button"
+                    className={`isolation-card ${isolation === 'shared' ? 'selected' : ''}`}
+                    onClick={() => setIsolation('shared')}
+                  >
+                    <strong>Shared checkout</strong>
+                    <span className="dim">branch off on demand with ⑂</span>
+                    <div className="iso-tooltip">
+                      <IlloIsolationShared />
+                      <p>
+                        All agents work directly in your checkout. When two tasks would
+                        collide, one pane branches off into{' '}
+                        <code>.worktrees/&lt;task&gt;</code> — you ask, or hit ⑂.
+                      </p>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    className={`isolation-card ${isolation === 'worktrees' ? 'selected' : ''}`}
+                    disabled={!repoReady}
+                    onClick={() => setIsolation('worktrees')}
+                  >
+                    <strong>Worktree per agent</strong>
+                    <span className="dim">
+                      {repoReady
+                        ? 'isolated from the start'
+                        : 'needs a git repo with commits'}
+                    </span>
+                    <div className="iso-tooltip">
+                      <IlloIsolationWorktrees />
+                      <p>
+                        Alpha keeps your real checkout; every other agent starts in its
+                        own <code>.worktrees/&lt;callsign&gt;</code>, detached at the base
+                        branch — identical code, no branch clutter.
+                      </p>
+                    </div>
+                  </button>
+                </div>
+
                 {scan?.isRepo && scan.branches.length > 0 ? (
                   <div className="field-row">
-                    <label className="field-label inline">diff base branch</label>
+                    <label className="field-label inline">base branch</label>
                     <select
                       value={baseBranch}
                       onChange={(e) => setBaseBranch(e.target.value)}
@@ -280,8 +339,8 @@ export default function LauncherModal(): JSX.Element {
                   </div>
                 )}
                 <div className="git-line dim">
-                  Agents work in your checkout. When two tasks overlap, hit ⑂ on a pane
-                  (or just ask the agent) to branch off into an isolated worktree.
+                  Worktrees are cut from the base branch, and diffs always compare
+                  against it.
                 </div>
               </>
             )}

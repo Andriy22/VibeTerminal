@@ -61,6 +61,19 @@ export function ensureExcluded(repoPath: string, pattern: string): void {
   }
 }
 
+/**
+ * Detached worktree at the base branch's commit — same code state, no new
+ * branch. Commits made inside are preserved via HEAD/reflog until a branch
+ * is created for them. Used by the eager 'worktrees' isolation mode.
+ */
+export async function addWorktreeDetached(
+  repoPath: string,
+  dir: string,
+  base: string
+): Promise<void> {
+  await git(repoPath, 'worktree', 'add', '--detach', dir, base)
+}
+
 export async function removeWorktree(repoPath: string, dir: string): Promise<void> {
   await git(repoPath, 'worktree', 'remove', '--force', dir)
 }

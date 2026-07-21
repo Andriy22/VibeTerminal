@@ -1,6 +1,20 @@
 import type { AgentKind } from './types'
+import { callsign } from './callsigns'
 
 export const WORKTREES_DIR = '.worktrees'
+
+/**
+ * Eager isolation ('worktrees' mode): worktree dir per pane, by index. The
+ * first pane (alpha) and shell panes stay in the main checkout; every other
+ * agent pane gets .worktrees/<callsign>.
+ */
+export function eagerPlacements(panes: { kind: AgentKind }[]): (string | null)[] {
+  return panes.map((pane, i) => {
+    const isAgent = pane.kind === 'claude' || pane.kind === 'codex'
+    if (i === 0 || !isAgent) return null
+    return `${WORKTREES_DIR}/${callsign(i)}`
+  })
+}
 
 /** One entry of `git worktree list --porcelain`. branch = short name, null = detached. */
 export interface WorktreeEntry {

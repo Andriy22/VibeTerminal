@@ -3,6 +3,7 @@ import type {
   ChangeGroup,
   FsEntry,
   GitInfo,
+  IsolationMode,
   PathSuggestion,
   ReadFileResult,
   Settings,
@@ -17,6 +18,7 @@ export interface WorkspaceDraftDto {
   path: string
   panes: { kind: AgentKind }[]
   baseBranch: string | null
+  isolation?: IsolationMode
   gridCols?: number | null
   yolo?: boolean
   claudeFlags?: string

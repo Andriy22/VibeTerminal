@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   branchOffInstruction,
+  eagerPlacements,
   parseWorktreeList,
   slugify,
   stripDeadWorkspaceFields
@@ -71,6 +72,27 @@ describe('branchOffInstruction', () => {
     expect(branchOffInstruction('shell', 'fix-login', null)).toBe(
       'git worktree add .worktrees/fix-login -b fix-login && cd .worktrees/fix-login'
     )
+  })
+})
+
+describe('eagerPlacements', () => {
+  const panes = (kinds: string[]) =>
+    kinds.map((kind) => ({ kind: kind as 'claude' | 'codex' | 'shell' }))
+
+  it('keeps alpha in the main checkout, other agents in callsign worktrees', () => {
+    expect(eagerPlacements(panes(['claude', 'claude', 'codex']))).toEqual([
+      null,
+      '.worktrees/bravo',
+      '.worktrees/charlie'
+    ])
+  })
+
+  it('keeps shell panes in the main checkout', () => {
+    expect(eagerPlacements(panes(['claude', 'shell', 'codex']))).toEqual([
+      null,
+      null,
+      '.worktrees/charlie'
+    ])
   })
 })
 

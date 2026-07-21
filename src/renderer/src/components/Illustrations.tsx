@@ -72,6 +72,53 @@ export function IlloBranches(): JSX.Element {
   )
 }
 
+/** Shared-checkout mode: everyone in one folder, one pane branching off on demand. */
+export function IlloIsolationShared(): JSX.Element {
+  return (
+    <svg viewBox="0 0 460 180">
+      <rect x="70" y="28" width="210" height="124" rx="10" fill="var(--glass)" stroke="var(--glass-border)" />
+      <text x="86" y="50" fill="var(--text-dim)" fontSize="10.5" fontFamily="var(--mono)">~/project · main</text>
+      {[
+        { y: 74, c: 'var(--claude)', g: '✳', label: 'alpha' },
+        { y: 100, c: 'var(--claude)', g: '✳', label: 'bravo' },
+        { y: 126, c: 'var(--codex)', g: '⬡', label: 'charlie' }
+      ].map((r) => (
+        <g key={r.y}>
+          <text x="92" y={r.y + 4} fill={r.c} fontSize="12" fontFamily="var(--mono)">{r.g}</text>
+          <text x="114" y={r.y + 4} fill="var(--text)" fontSize="10" fontFamily="var(--mono)">{r.label}</text>
+          <rect x="176" y={r.y - 3} width="86" height="6" rx="3" fill="var(--hover-strong)" />
+        </g>
+      ))}
+      <path d="M280 100 C 316 100 310 118 344 118" fill="none" stroke="var(--claude)" strokeWidth="2" strokeDasharray="5 4" />
+      <rect x="344" y="96" width="104" height="44" rx="8" fill="var(--pane-bg)" stroke="var(--claude)" strokeDasharray="5 4" />
+      <text x="356" y="114" fill="var(--claude)" fontSize="10" fontFamily="var(--mono)">⑂ fix-login</text>
+      <text x="356" y="129" fill="var(--text-dim)" fontSize="8" fontFamily="var(--mono)">.worktrees/ · on demand</text>
+    </svg>
+  )
+}
+
+/** Eager mode: alpha keeps the checkout, other agents in detached worktrees. */
+export function IlloIsolationWorktrees(): JSX.Element {
+  return (
+    <svg viewBox="0 0 460 180">
+      <rect x="52" y="52" width="130" height="76" rx="10" fill="var(--glass)" stroke="var(--claude)" />
+      <text x="68" y="84" fill="var(--claude)" fontSize="13" fontFamily="var(--mono)">✳ alpha</text>
+      <text x="68" y="104" fill="var(--text-dim)" fontSize="9" fontFamily="var(--mono)">main checkout</text>
+      <line x1="182" y1="90" x2="228" y2="90" stroke="var(--text-dim)" strokeWidth="2" />
+      <circle cx="236" cy="90" r="5" fill="var(--glass-strong)" stroke="var(--text-dim)" strokeWidth="2" />
+      <text x="222" y="112" fill="var(--text-dim)" fontSize="9" fontFamily="var(--mono)">base</text>
+      <path d="M241 86 C 266 60 266 48 290 48" fill="none" stroke="var(--claude)" strokeWidth="2" strokeDasharray="5 4" />
+      <path d="M241 94 C 266 120 266 132 290 132" fill="none" stroke="var(--codex)" strokeWidth="2" strokeDasharray="5 4" />
+      <rect x="290" y="28" width="146" height="42" rx="8" fill="var(--pane-bg)" stroke="var(--claude)" strokeDasharray="5 4" />
+      <text x="302" y="46" fill="var(--claude)" fontSize="10" fontFamily="var(--mono)">✳ .worktrees/bravo</text>
+      <text x="302" y="60" fill="var(--text-dim)" fontSize="8" fontFamily="var(--mono)">detached @ base</text>
+      <rect x="290" y="112" width="146" height="42" rx="8" fill="var(--pane-bg)" stroke="var(--codex)" strokeDasharray="5 4" />
+      <text x="302" y="130" fill="var(--codex)" fontSize="10" fontFamily="var(--mono)">⬡ .worktrees/charlie</text>
+      <text x="302" y="144" fill="var(--text-dim)" fontSize="8" fontFamily="var(--mono)">detached @ base</text>
+    </svg>
+  )
+}
+
 export function IlloViews(): JSX.Element {
   return (
     <svg viewBox="0 0 460 180">

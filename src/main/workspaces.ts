@@ -4,14 +4,17 @@ import { join, relative, resolve } from 'path'
 import { randomUUID } from 'crypto'
 import type {
   AgentKind,
+  IsolationMode,
   PaneRuntime,
   WorkspaceConfig,
   WorkspaceSnapshot,
   WorktreeStatus
 } from '../shared/types'
 import { buildAgentCommand } from '../shared/commands'
-import { WORKTREES_DIR } from '../shared/worktrees'
+import { callsign } from '../shared/callsigns'
+import { eagerPlacements, WORKTREES_DIR } from '../shared/worktrees'
 import {
+  addWorktreeDetached,
   branchChangedFiles,
   branchExists,
   changedFiles,
@@ -64,6 +67,7 @@ export interface WorkspaceDraft {
   path: string
   panes: { kind: AgentKind }[]
   baseBranch: string | null
+  isolation?: IsolationMode
   gridCols?: number | null
   yolo?: boolean
   claudeFlags?: string
@@ -124,6 +128,7 @@ export class Workspaces {
       panes: draft.panes.map((p) => ({ id: randomUUID(), kind: p.kind })),
       // Diff base, pinned once here — never re-inferred from the checkout later.
       baseBranch: draft.baseBranch || (await resolveDefaultBranch(draft.path)),
+      isolation: draft.isolation ?? 'shared',
       gridCols: draft.gridCols ?? null,
       yolo: draft.yolo ?? false,
       claudeFlags: draft.claudeFlags,
@@ -166,11 +171,42 @@ export class Workspaces {
     }
     const mainBranch = info.branch
 
+    // Eager mode: provision the classic detached worktree per agent pane.
+    const eager = config.isolation === 'worktrees' && info.isRepo && info.hasCommits
+    const placements = eager
+      ? eagerPlacements(config.panes)
+      : config.panes.map(() => null)
+    if (eager) {
+      const base = config.baseBranch || info.branch || 'HEAD'
+      const created: string[] = []
+      try {
+        for (const dir of placements) {
+          if (!dir || existsSync(join(config.path, dir))) continue // reuse previous run
+          await addWorktreeDetached(config.path, dir, base)
+          created.push(dir)
+        }
+      } catch (error) {
+        // Roll back worktrees created during this failed launch.
+        for (const dir of created) {
+          await removeWorktree(config.path, dir).catch(() => {})
+        }
+        throw error
+      }
+    }
+
     const panes = new Map<string, PaneRuntime>()
     this.runtime.set(id, panes)
-    for (const pane of config.panes) {
-      this.spawnPane(config, pane, resume, mainBranch, panes)
-    }
+    config.panes.forEach((pane, i) => {
+      const dir = placements[i]
+      this.spawnPane(
+        config,
+        pane,
+        resume,
+        dir ? join(config.path, dir) : config.path,
+        dir ? 'detached' : mainBranch,
+        panes
+      )
+    })
 
     config.hasRun = true
     config.wasRunning = true
@@ -183,10 +219,10 @@ export class Workspaces {
     config: WorkspaceConfig,
     pane: { id: string; kind: AgentKind },
     resume: boolean,
-    mainBranch: string | null,
+    cwd: string,
+    branch: string | null,
     panes: Map<string, PaneRuntime>
   ): void {
-    const cwd = config.path
     const ptyId = `${config.id}:${pane.id}:${randomUUID().slice(0, 8)}`
     const settings = this.store.data.settings
     const flags =
@@ -240,7 +276,7 @@ export class Workspaces {
       ptyId,
       cwd,
       liveCwd: cwd,
-      branch: mainBranch,
+      branch,
       status: 'running'
     })
   }
@@ -253,7 +289,7 @@ export class Workspaces {
       for (const pane of config.panes) {
         const existing = panes.get(pane.id)
         if (existing?.status !== 'running') continue
-        this.spawnPane(config, pane, true, existing.branch, panes)
+        this.spawnPane(config, pane, true, existing.cwd, existing.branch, panes)
       }
     }
     this.notify()
@@ -267,7 +303,22 @@ export class Workspaces {
     const pane = { id: randomUUID(), kind }
     config.panes.push(pane)
     const info = await getGitInfo(config.path)
-    this.spawnPane(config, pane, false, info.branch, panes)
+    const isAgent = kind === 'claude' || kind === 'codex'
+    let cwd = config.path
+    let branch = info.branch
+    if (config.isolation === 'worktrees' && isAgent && info.isRepo && info.hasCommits) {
+      // Next free callsign dir — never reuse an existing (possibly dirty) one.
+      let index = config.panes.length - 1
+      let dir = `${WORKTREES_DIR}/${callsign(index)}`
+      while (existsSync(join(config.path, dir))) {
+        dir = `${WORKTREES_DIR}/${callsign(++index)}`
+      }
+      const base = config.baseBranch || info.branch || 'HEAD'
+      await addWorktreeDetached(config.path, dir, base)
+      cwd = join(config.path, dir)
+      branch = 'detached'
+    }
+    this.spawnPane(config, pane, false, cwd, branch, panes)
     this.store.upsertWorkspace(config)
     this.notify()
   }
@@ -300,7 +351,9 @@ export class Workspaces {
     if (!config || !panes || !runtime || runtime.status === 'running') return
     const pane = config.panes.find((p) => p.id === paneId)
     if (!pane) return
-    this.spawnPane(config, pane, true, runtime.branch, panes)
+    // The pane's worktree may have been removed while it was down.
+    const cwd = existsSync(runtime.cwd) ? runtime.cwd : config.path
+    this.spawnPane(config, pane, true, cwd, runtime.branch, panes)
     this.notify()
   }
 

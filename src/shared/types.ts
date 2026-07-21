@@ -5,6 +5,13 @@ export interface PaneConfig {
   kind: AgentKind
 }
 
+/**
+ * 'shared' = all panes in the main checkout, branch off on demand.
+ * 'worktrees' = every agent pane after alpha starts in its own detached
+ * worktree at the base branch (the classic eager mode).
+ */
+export type IsolationMode = 'shared' | 'worktrees'
+
 export interface WorkspaceConfig {
   id: string
   name: string
@@ -12,6 +19,8 @@ export interface WorkspaceConfig {
   panes: PaneConfig[]
   /** Diff base: committed changes are measured against this branch. Pinned at creation. */
   baseBranch: string | null
+  /** Missing = 'shared' (workspaces created before the mode choice existed). */
+  isolation?: IsolationMode
   /** Fixed grid column count. null/undefined = auto (2-column rows). */
   gridCols?: number | null
   /** Accent color. null/undefined = group color, else stable auto color. */

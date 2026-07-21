@@ -36,6 +36,8 @@ export default function Sidebar(): JSX.Element {
   const setActive = useApp((s) => s.setActive)
   const openLauncher = useApp((s) => s.openLauncher)
   const openSettings = useApp((s) => s.openSettings)
+  const openChangelog = useApp((s) => s.openChangelog)
+  const changelogOpen = useApp((s) => s.changelogOpen)
   const setClosing = useApp((s) => s.setClosing)
   const toast = useApp((s) => s.toast)
   const groupColors = useApp((s) => s.groupColors)
@@ -114,6 +116,12 @@ export default function Sidebar(): JSX.Element {
     )
   }
 
+  // Recomputed whenever the modal toggles — opening it records the version as seen.
+  const changelogUnseen =
+    Boolean(version) &&
+    !changelogOpen &&
+    localStorage.getItem('vt-changelog-seen') !== version
+
   const launch = async (id: string): Promise<void> => {
     setActive(id)
     try {
@@ -185,6 +193,14 @@ export default function Sidebar(): JSX.Element {
         <div className="rail-bottom">
           <button
             className="tool-button"
+            title="What’s new"
+            onClick={() => openChangelog(true)}
+          >
+            <Icon name="sparkles" size={14} />
+            {changelogUnseen && <span className="tool-dot" />}
+          </button>
+          <button
+            className="tool-button"
             title="Settings"
             onClick={() => openSettings(true)}
           >
@@ -200,7 +216,15 @@ export default function Sidebar(): JSX.Element {
       <div className="sidebar-brand">
         <span className="brand-mark">✳</span>
         <span className="brand-name">VibeTerminal</span>
-        {version && <span className="brand-version">v{version}</span>}
+        {version && (
+          <button
+            className="brand-version"
+            title="What’s new in this version"
+            onClick={() => openChangelog(true)}
+          >
+            v{version}
+          </button>
+        )}
         <button
           className="tool-button brand-collapse"
           title="Collapse sidebar"
@@ -454,6 +478,14 @@ export default function Sidebar(): JSX.Element {
           onClick={() => openSettings(true)}
         >
           <Icon name="gear" size={14} />
+        </button>
+        <button
+          className="tool-button"
+          title="What’s new"
+          onClick={() => openChangelog(true)}
+        >
+          <Icon name="sparkles" size={14} />
+          {changelogUnseen && <span className="tool-dot" />}
         </button>
       </div>
     </aside>

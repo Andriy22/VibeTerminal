@@ -14,6 +14,7 @@ interface AppState {
   launcherOpen: boolean
   settingsOpen: boolean
   memoryOpen: boolean
+  changelogOpen: boolean
   onboardingOpen: boolean
   /** Center area view: agent terminals, file explorer, or git changes. */
   workspaceView: 'term' | 'files' | 'diff'
@@ -38,6 +39,7 @@ interface AppState {
   openLauncher: (open: boolean) => void
   openSettings: (open: boolean) => void
   openMemory: (open: boolean) => void
+  openChangelog: (open: boolean) => void
   openOnboarding: (open: boolean) => void
   setWorkspaceView: (view: 'term' | 'files' | 'diff') => void
   setMaximized: (paneId: string | null) => void
@@ -61,6 +63,7 @@ export const useApp = create<AppState>((set, get) => ({
   launcherOpen: false,
   settingsOpen: false,
   memoryOpen: false,
+  changelogOpen: false,
   onboardingOpen: false,
   workspaceView: 'term',
   maximizedPane: null,
@@ -100,6 +103,7 @@ export const useApp = create<AppState>((set, get) => ({
   openLauncher: (open) => set({ launcherOpen: open }),
   openSettings: (open) => set({ settingsOpen: open }),
   openMemory: (open) => set({ memoryOpen: open }),
+  openChangelog: (open) => set({ changelogOpen: open }),
   openOnboarding: (open) => set({ onboardingOpen: open }),
   setWorkspaceView: (workspaceView) => set({ workspaceView }),
   setMaximized: (paneId) => set({ maximizedPane: paneId }),

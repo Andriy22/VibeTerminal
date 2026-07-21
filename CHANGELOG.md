@@ -2,6 +2,19 @@
 
 All notable changes to VibeTerminal are documented here.
 
+<!--
+This file is the single source of truth for the in-app "What's new" screen
+(sparkle button next to Settings). Keep the format:
+  ## [version] — YYYY-MM-DD
+  ### Added | Fixed | Reworked | Removed
+  - bullet (inline **bold**, *italic* and `code` are rendered)
+-->
+
+## [Unreleased]
+
+### Added
+- In-app changelog: a **What's new** screen next to Settings (and behind the version badge) showing what was added, fixed, reworked, and removed in every release — with an unread dot after each update.
+
 ## [0.2.0] — 2026-07-21
 
 ### Added

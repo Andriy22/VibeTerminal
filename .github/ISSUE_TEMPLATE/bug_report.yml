@@ -1,0 +1,67 @@
+name: 🐛 Bug report
+description: Something isn't working the way it should
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! Please fill in as much of the form below as you can.
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: A clear and concise description of the bug.
+      placeholder: When I launch a workspace with worktrees enabled, the second pane...
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Minimal steps that trigger the problem.
+      placeholder: |
+        1. Open the launcher (⌘N)
+        2. Pick a multi-repo folder
+        3. Add two Claude panes and launch
+        4. See error
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What you expected to happen instead.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: VibeTerminal version
+      description: Shown in Settings, or `package.json` if running from source.
+      placeholder: 0.1.1
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: macOS version
+      placeholder: macOS 15.4 (Apple Silicon)
+    validations:
+      required: true
+  - type: dropdown
+    id: agent
+    attributes:
+      label: Which pane type is affected?
+      multiple: true
+      options:
+        - Claude Code
+        - Codex
+        - Plain shell
+        - Not pane-related
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output
+      description: Any errors from the DevTools console or terminal output. Automatically formatted as code.
+      render: shell

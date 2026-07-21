@@ -1,0 +1,43 @@
+name: 💡 Feature request
+description: Suggest an idea or improvement
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have an idea that would make VibeTerminal better? We'd love to hear it.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the workflow pain or missing capability, not just the solution.
+      placeholder: When I run four agents at once, I can't tell which one needs my attention because...
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: What you'd like to see happen.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any workarounds you use today, or other approaches that could work.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which area does this touch?
+      multiple: true
+      options:
+        - Workspaces / launcher
+        - Terminal panes / grid
+        - Git worktrees / diffs
+        - Project memory (MCP)
+        - Voice dictation
+        - Usage meters
+        - Themes / appearance
+        - Other

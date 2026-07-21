@@ -1,0 +1,58 @@
+{
+  "name": "vibeterminal",
+  "productName": "VibeTerminal",
+  "version": "0.1.1",
+  "description": "Multi-agent terminal workspace manager",
+  "main": "out/main/index.js",
+  "author": "cvrsd",
+  "license": "MIT",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "dist": "electron-vite build && electron-builder --mac",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "test": "vitest run",
+    "postinstall": "electron-rebuild -f -w node-pty"
+  },
+  "build": {
+    "appId": "com.cvrsd.vibeterminal",
+    "productName": "VibeTerminal",
+    "files": [
+      "out/**",
+      "resources/**"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "mac": {
+      "icon": "resources/icon.icns",
+      "category": "public.app-category.developer-tools",
+      "electronLanguages": ["en"]
+    }
+  },
+  "dependencies": {
+    "node-pty": "^1.0.0"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^3.6.0",
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/node": "^20.17.9",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/addon-web-links": "^0.11.0",
+    "@xterm/xterm": "^5.5.0",
+    "electron": "^33.2.0",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^2.3.0",
+    "highlight.js": "^11.11.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11",
+    "vitest": "^2.1.8",
+    "zustand": "^5.0.2"
+  }
+}

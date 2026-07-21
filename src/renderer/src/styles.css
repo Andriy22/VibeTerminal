@@ -1376,14 +1376,35 @@ code {
   display: flex;
 }
 
-.launcher-step {
-  animation: step-in 0.24s ease-out;
+/* Step content enters with a soft staggered rise — children animate, not the panel. */
+.launcher-body.launcher-step > * {
+  animation: step-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.launcher-body.launcher-step > *:nth-child(2) {
+  animation-delay: 35ms;
+}
+
+.launcher-body.launcher-step > *:nth-child(3) {
+  animation-delay: 70ms;
+}
+
+.launcher-body.launcher-step > *:nth-child(4) {
+  animation-delay: 105ms;
+}
+
+.launcher-body.launcher-step > *:nth-child(5) {
+  animation-delay: 140ms;
+}
+
+.launcher-body.launcher-step > *:nth-child(n + 6) {
+  animation-delay: 170ms;
 }
 
 @keyframes step-in {
   from {
     opacity: 0;
-    transform: translateX(10px);
+    transform: translateY(10px);
   }
   to {
     opacity: 1;
@@ -1470,15 +1491,6 @@ code {
   font-size: 14px;
 }
 
-.step-line.filled {
-  background: var(--accent);
-  opacity: 0.6;
-}
-
-.step-line {
-  transition: background 0.25s, opacity 0.25s;
-}
-
 /* YOLO mode */
 
 .yolo-card {
@@ -1552,51 +1564,116 @@ code {
   }
 }
 
+/* Stepper v2: continuous progress rail behind icon nodes, spring-like motion. */
 .stepper {
+  position: relative;
   flex: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px 20px 14px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  padding: 16px 44px 12px;
   border-bottom: 1px solid var(--glass-border);
 }
 
+.stepper-track {
+  position: absolute;
+  top: 28px;
+  left: calc(44px + (100% - 88px) * 0.125);
+  width: calc((100% - 88px) * 0.75);
+  height: 2px;
+  border-radius: 1px;
+  background: var(--glass-border);
+  overflow: hidden;
+}
+
+.stepper-track i {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--accent) 55%, transparent),
+    var(--accent)
+  );
+  transform-origin: left center;
+  transform: scaleX(var(--p, 0));
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 .step {
+  position: relative;
+  z-index: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
   cursor: pointer;
-  flex: none;
+}
+
+.step.locked {
+  cursor: default;
+}
+
+.step.locked .step-label {
+  opacity: 0.55;
 }
 
 .step-dot {
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   flex: none;
-  border-radius: 50%;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1.5px solid var(--border-strong);
   color: var(--text-dim);
-  transition: background 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s;
+  background: var(--glass-strong);
+  border: 1.5px solid var(--border-strong);
+  transition:
+    background 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+    color 0.25s,
+    border-color 0.25s,
+    box-shadow 0.25s,
+    transform 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.step:hover:not(.locked):not(.active) .step-dot {
+  color: var(--text);
+  border-color: var(--text-dim);
+  transform: translateY(-1px);
 }
 
 .step.active .step-dot {
   background: var(--accent);
   color: var(--accent-contrast);
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+  transform: scale(1.1);
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--accent) 16%, transparent),
+    0 4px 18px -4px color-mix(in srgb, var(--accent) 60%, transparent);
 }
 
 .step.done .step-dot {
   color: var(--accent);
-  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.step:focus-visible {
+  outline: none;
+}
+
+.step:focus-visible .step-dot {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 40%, transparent);
 }
 
 .step-label {
-  font-size: 12px;
+  font-size: 11px;
+  letter-spacing: 0.02em;
   color: var(--text-dim);
   white-space: nowrap;
   transition: color 0.2s;
@@ -1605,15 +1682,6 @@ code {
 .step.active .step-label {
   color: var(--text);
   font-weight: 600;
-}
-
-.step-line {
-  width: 30px;
-  flex: none;
-  height: 2px;
-  border-radius: 1px;
-  margin: 0 10px;
-  background: var(--glass-border);
 }
 
 .footer-spacer {
@@ -2732,10 +2800,11 @@ code {
   border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
 }
 
+/* Isolation mode cards: hover previews the mode in the aside panel (no tooltip). */
 .isolation-cards {
   display: flex;
   gap: 10px;
-  margin-bottom: 14px;
+  margin-bottom: 16px;
 }
 
 .isolation-card {
@@ -2743,21 +2812,65 @@ code {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
   align-items: flex-start;
-  padding: 12px 14px;
-  border-radius: 10px;
+  padding: 14px 16px 13px;
+  border-radius: 12px;
   border: 1px solid var(--glass-border);
   background: var(--glass);
   color: var(--text);
   text-align: left;
   cursor: pointer;
   font: inherit;
+  transition:
+    border-color 0.2s,
+    background 0.2s,
+    box-shadow 0.25s,
+    transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.isolation-card > svg {
+  color: var(--text-dim);
+  transition: color 0.2s;
+}
+
+.isolation-card strong {
+  font-size: 13px;
+  letter-spacing: -0.01em;
+  transition: color 0.2s;
+}
+
+.isolation-card .dim {
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.isolation-card:hover:not(:disabled) {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--glass-border));
+  box-shadow: 0 10px 28px -14px rgba(0, 0, 0, 0.6);
+}
+
+.isolation-card:active:not(:disabled) {
+  transform: translateY(0) scale(0.985);
+}
+
+.isolation-card:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
 .isolation-card.selected {
-  border-color: var(--claude);
-  background: var(--hover);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 7%, var(--glass));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent),
+    0 8px 26px -14px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.isolation-card.selected > svg,
+.isolation-card.selected strong {
+  color: var(--accent);
 }
 
 .isolation-card:disabled {
@@ -2765,36 +2878,60 @@ code {
   cursor: not-allowed;
 }
 
-.isolation-card .iso-tooltip {
-  visibility: hidden;
-  opacity: 0;
-  transition: opacity 140ms ease 260ms;
+.iso-check {
   position: absolute;
-  left: 0;
-  top: calc(100% + 8px);
-  z-index: 30;
-  width: 330px;
-  padding: 10px;
-  border-radius: 10px;
-  background: var(--pane-bg);
-  border: 1px solid var(--glass-border);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
-  pointer-events: none;
+  top: 10px;
+  right: 10px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  transform: scale(0);
+  opacity: 0;
+  transition:
+    transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+    opacity 0.2s;
 }
 
-.isolation-card:hover:not(:disabled) .iso-tooltip {
-  visibility: visible;
+.isolation-card.selected .iso-check {
+  transform: scale(1);
   opacity: 1;
 }
 
-.isolation-card .iso-tooltip svg {
-  width: 100%;
-  height: auto;
+/* Aside content crossfades when the step or hovered isolation mode changes. */
+.aside-content {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  animation: aside-in 0.26s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.isolation-card .iso-tooltip p {
-  margin: 8px 0 0;
-  font-size: 11.5px;
-  color: var(--text-dim);
-  line-height: 1.45;
+@keyframes aside-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .launcher-body.launcher-step > *,
+  .aside-content,
+  .aside-tips li {
+    animation: none !important;
+  }
+
+  .stepper-track i,
+  .step-dot,
+  .isolation-card,
+  .iso-check {
+    transition: none !important;
+  }
 }

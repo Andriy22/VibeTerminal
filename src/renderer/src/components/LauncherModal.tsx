@@ -15,6 +15,28 @@ import {
   IlloTools
 } from './Illustrations'
 
+/** Aside panel content per isolation mode — previewed live while hovering a card. */
+const ISO_ASIDE: Record<IsolationMode, { title: string; illo: JSX.Element; tips: string[] }> = {
+  shared: {
+    title: 'Shared checkout',
+    illo: <IlloIsolationShared />,
+    tips: [
+      'Everything runs in your real checkout — zero setup, instant start.',
+      'Hit ⑂ on any pane (or just ask the agent) to branch off into .worktrees/<task>.',
+      'The diff view picks up every worktree automatically.'
+    ]
+  },
+  worktrees: {
+    title: 'Worktree per agent',
+    illo: <IlloIsolationWorktrees />,
+    tips: [
+      'Alpha keeps the real checkout; bravo, charlie… start in .worktrees/<callsign>.',
+      'Worktrees start detached at your base branch — identical code, no branch clutter.',
+      'Ask an agent to create a branch when its work is worth keeping.'
+    ]
+  }
+}
+
 const COUNTS = [1, 2, 4, 6, 8]
 const COL_OPTIONS: { value: number | null; label: string }[] = [
   { value: null, label: 'Auto' },
@@ -85,6 +107,7 @@ export default function LauncherModal(): JSX.Element {
   const [kinds, setKinds] = useState<AgentKind[]>(Array(8).fill('claude'))
   const [cols, setCols] = useState<number | null>(null)
   const [isolation, setIsolation] = useState<IsolationMode>('shared')
+  const [hoveredIso, setHoveredIso] = useState<IsolationMode | null>(null)
   const [baseBranch, setBaseBranch] = useState('')
   const [yolo, setYolo] = useState(false)
   const [name, setName] = useState('')
@@ -167,28 +190,45 @@ export default function LauncherModal(): JSX.Element {
       : 'shared checkout · branch off on demand'
 
   const stepInfo = STEPS[step]
+  // On the isolation step the aside mirrors the hovered (else selected) mode,
+  // so illustrations appear on hover without any floating tooltip to clip.
+  const asideInfo =
+    step === 2
+      ? ISO_ASIDE[hoveredIso ?? isolation]
+      : { title: 'How it works', illo: stepInfo.illo, tips: stepInfo.tips }
+  const asideKey = step === 2 ? `iso-${hoveredIso ?? isolation}` : `step-${step}`
 
   return (
     <div className="modal-backdrop" onMouseDown={() => openLauncher(false)}>
       <div className="modal launcher-modal" onMouseDown={(e) => e.stopPropagation()}>
         <div className="stepper">
-          {STEPS.map((s, i) => (
-            <div
-              key={s.label}
-              className={`step ${i === step ? 'active' : ''} ${i < step ? 'done' : ''}`}
-              onClick={() => {
-                if (i < step || (i > step && folderReady)) setStep(i)
-              }}
-            >
-              <span className="step-dot">
-                <Icon name={i < step ? 'check' : s.icon} size={12} />
-              </span>
-              <span className="step-label">{s.label}</span>
-              {i < STEPS.length - 1 && (
-                <span className={`step-line ${i < step ? 'filled' : ''}`} />
-              )}
-            </div>
-          ))}
+          <div
+            className="stepper-track"
+            style={{ '--p': step / (STEPS.length - 1) } as React.CSSProperties}
+          >
+            <i />
+          </div>
+          {STEPS.map((s, i) => {
+            const reachable = i < step || (i > step && folderReady)
+            return (
+              <button
+                key={s.label}
+                type="button"
+                className={`step ${i === step ? 'active' : ''} ${i < step ? 'done' : ''} ${
+                  !reachable && i !== step ? 'locked' : ''
+                }`}
+                aria-current={i === step ? 'step' : undefined}
+                onClick={() => {
+                  if (reachable) setStep(i)
+                }}
+              >
+                <span className="step-dot">
+                  <Icon name={i < step ? 'check' : s.icon} size={12} />
+                </span>
+                <span className="step-label">{s.label}</span>
+              </button>
+            )
+          })}
         </div>
 
         <div className="launcher-columns">
@@ -283,38 +323,38 @@ export default function LauncherModal(): JSX.Element {
                     type="button"
                     className={`isolation-card ${isolation === 'shared' ? 'selected' : ''}`}
                     onClick={() => setIsolation('shared')}
+                    onMouseEnter={() => setHoveredIso('shared')}
+                    onMouseLeave={() => setHoveredIso(null)}
+                    onFocus={() => setHoveredIso('shared')}
+                    onBlur={() => setHoveredIso(null)}
                   >
+                    <span className="iso-check" aria-hidden="true">
+                      <Icon name="check" size={10} />
+                    </span>
+                    <Icon name="folder" size={16} />
                     <strong>Shared checkout</strong>
-                    <span className="dim">branch off on demand with ⑂</span>
-                    <div className="iso-tooltip">
-                      <IlloIsolationShared />
-                      <p>
-                        All agents work directly in your checkout. When two tasks would
-                        collide, one pane branches off into{' '}
-                        <code>.worktrees/&lt;task&gt;</code> — you ask, or hit ⑂.
-                      </p>
-                    </div>
+                    <span className="dim">Branch off on demand with ⑂</span>
                   </button>
                   <button
                     type="button"
                     className={`isolation-card ${isolation === 'worktrees' ? 'selected' : ''}`}
                     disabled={!repoReady}
                     onClick={() => setIsolation('worktrees')}
+                    onMouseEnter={() => setHoveredIso('worktrees')}
+                    onMouseLeave={() => setHoveredIso(null)}
+                    onFocus={() => setHoveredIso('worktrees')}
+                    onBlur={() => setHoveredIso(null)}
                   >
+                    <span className="iso-check" aria-hidden="true">
+                      <Icon name="check" size={10} />
+                    </span>
+                    <Icon name="branch" size={16} />
                     <strong>Worktree per agent</strong>
                     <span className="dim">
                       {repoReady
-                        ? 'isolated from the start'
-                        : 'needs a git repo with commits'}
+                        ? 'Isolated from the start'
+                        : 'Needs a git repo with commits'}
                     </span>
-                    <div className="iso-tooltip">
-                      <IlloIsolationWorktrees />
-                      <p>
-                        Alpha keeps your real checkout; every other agent starts in its
-                        own <code>.worktrees/&lt;callsign&gt;</code>, detached at the base
-                        branch — identical code, no branch clutter.
-                      </p>
-                    </div>
                   </button>
                 </div>
 
@@ -412,16 +452,18 @@ export default function LauncherModal(): JSX.Element {
             )}
           </div>
 
-          <aside className="launcher-aside launcher-step" key={`aside-${step}`}>
-            <div className="aside-illo">{stepInfo.illo}</div>
-            <div className="aside-title">How it works</div>
-            <ul className="aside-tips">
-              {stepInfo.tips.map((tip, i) => (
-                <li key={i} style={{ animationDelay: `${80 + i * 60}ms` }}>
-                  {tip}
-                </li>
-              ))}
-            </ul>
+          <aside className="launcher-aside">
+            <div className="aside-content" key={asideKey}>
+              <div className="aside-illo">{asideInfo.illo}</div>
+              <div className="aside-title">{asideInfo.title}</div>
+              <ul className="aside-tips">
+                {asideInfo.tips.map((tip, i) => (
+                  <li key={i} style={{ animationDelay: `${60 + i * 50}ms` }}>
+                    {tip}
+                  </li>
+                ))}
+              </ul>
+            </div>
           </aside>
         </div>
 

@@ -18,7 +18,8 @@ export interface WorkspaceConfig {
   name: string
   path: string
   panes: PaneConfig[]
-  useWorktrees: boolean
+  /** @deprecated dead field from the eager-worktree model — stripped on load. */
+  useWorktrees?: boolean
   /** Branch worktrees are cut from. null = branch that was current at launch. */
   baseBranch: string | null
   /** Non-empty = multi-repo folder: agents get .agents/<callsign> mirrors. */

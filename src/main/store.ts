@@ -2,6 +2,7 @@ import { app } from 'electron'
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import type { Settings, WorkspaceConfig } from '../shared/types'
+import { stripDeadWorkspaceFields } from '../shared/worktrees'
 
 interface StoreData {
   workspaces: WorkspaceConfig[]
@@ -37,7 +38,10 @@ export class Store {
     try {
       const raw = JSON.parse(readFileSync(this.file, 'utf8'))
       return {
-        workspaces: Array.isArray(raw.workspaces) ? raw.workspaces : [],
+        workspaces: (Array.isArray(raw.workspaces) ? raw.workspaces : []).map(
+          (w: Record<string, unknown>) =>
+            stripDeadWorkspaceFields(w) as unknown as WorkspaceConfig
+        ),
         settings: { ...DEFAULT_SETTINGS, ...raw.settings },
         groupColors:
           raw.groupColors && typeof raw.groupColors === 'object' ? raw.groupColors : {}

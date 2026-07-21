@@ -1,51 +1,34 @@
-import {
-  existsSync,
-  mkdirSync,
-  readdirSync,
-  readFileSync,
-  rmSync,
-  symlinkSync,
-  writeFileSync
-} from 'fs'
+import { existsSync, readdirSync } from 'fs'
 import { homedir } from 'os'
-import { join, resolve } from 'path'
+import { join, relative, resolve } from 'path'
 import { randomUUID } from 'crypto'
 import type {
   AgentKind,
   PaneRuntime,
-  RepoChoice,
   WorkspaceConfig,
   WorkspaceSnapshot
 } from '../shared/types'
 import { buildAgentCommand } from '../shared/commands'
-import { callsign } from '../shared/callsigns'
+import { WORKTREES_DIR } from '../shared/worktrees'
 import {
-  AGENTS_DIR,
-  planPlacements,
-  worktreeSpec,
-  WORKTREES_DIR,
-  type PanePlacement
-} from '../shared/worktreePlan'
-import {
-  addWorktree,
   branchChangedFiles,
+  branchExists,
   changedFiles,
   ensureExcluded,
-  ensureRepo,
   fileDiff,
   fileDiffRange,
   getGitInfo,
   isDirty,
   listWorktrees,
   pruneWorktrees,
-  removeWorktree
+  removeWorktree,
+  resolveDefaultBranch
 } from './git'
 import type { ChangedFile, ChangeGroup } from '../shared/types'
 import type { PtyHostManager } from './ptyHostManager'
 import type { Store } from './store'
 import {
   memoryLaunchArgs,
-  MIRROR_AGENTS_MD,
   resolveWorkspaceMemory,
   type MemoryLaunchArgs,
   type WorkspaceMemory
@@ -77,9 +60,7 @@ export interface WorkspaceDraft {
   name: string
   path: string
   panes: { kind: AgentKind }[]
-  useWorktrees: boolean
   baseBranch: string | null
-  repos?: RepoChoice[]
   gridCols?: number | null
   yolo?: boolean
   claudeFlags?: string
@@ -138,9 +119,8 @@ export class Workspaces {
       name: draft.name,
       path: draft.path,
       panes: draft.panes.map((p) => ({ id: randomUUID(), kind: p.kind })),
-      useWorktrees: draft.useWorktrees,
-      baseBranch: draft.baseBranch,
-      repos: draft.repos,
+      // Diff base, pinned once here — never re-inferred from the checkout later.
+      baseBranch: draft.baseBranch || (await resolveDefaultBranch(draft.path)),
       gridCols: draft.gridCols ?? null,
       yolo: draft.yolo ?? false,
       claudeFlags: draft.claudeFlags,
@@ -163,9 +143,6 @@ export class Workspaces {
     }
 
     const resume = config.hasRun
-    const placements = planPlacements(config)
-    const multi = (config.repos?.length ?? 0) > 0
-    let mainBranch: string | null = null
 
     // Project memory: resolve scopes and prepare the MCP wiring for agents.
     if (this.store.data.settings.memoryEnabled !== false) {
@@ -179,48 +156,17 @@ export class Workspaces {
       this.memory.delete(id)
     }
 
-    if (config.useWorktrees && resolve(config.path) === homedir()) {
-      throw new Error(
-        'Refusing to manage worktrees in your home directory — pick a project folder or disable worktrees.'
-      )
-    }
-
-    if (config.useWorktrees && multi) {
-      for (const placement of placements) {
-        if (placement.worktreeDir) await this.createAgentMirror(config, placement)
-      }
-    } else if (config.useWorktrees) {
-      await ensureRepo(config.path)
+    const info = await getGitInfo(config.path)
+    if (info.isRepo) {
       ensureExcluded(config.path, `${WORKTREES_DIR}/`)
       await pruneWorktrees(config.path)
-      const info = await getGitInfo(config.path)
-      mainBranch = info.branch
-      const base = config.baseBranch || info.branch || 'HEAD'
-      const created: string[] = []
-      try {
-        for (const placement of placements) {
-          if (!placement.worktreeDir) continue
-          const dir = join(config.path, placement.worktreeDir)
-          if (existsSync(dir)) continue // reuse the worktree from a previous run
-          await addWorktree(config.path, placement.worktreeDir, base)
-          created.push(placement.worktreeDir)
-        }
-      } catch (error) {
-        // Roll back worktrees created during this failed launch.
-        for (const dir of created) {
-          await removeWorktree(config.path, dir).catch(() => {})
-        }
-        throw error
-      }
-    } else {
-      const info = await getGitInfo(config.path)
-      mainBranch = info.branch
     }
+    const mainBranch = info.branch
 
     const panes = new Map<string, PaneRuntime>()
     this.runtime.set(id, panes)
-    for (let i = 0; i < config.panes.length; i++) {
-      this.spawnPane(config, config.panes[i], placements[i], resume, mainBranch, panes)
+    for (const pane of config.panes) {
+      this.spawnPane(config, pane, resume, mainBranch, panes)
     }
 
     config.hasRun = true
@@ -230,60 +176,14 @@ export class Workspaces {
     this.notify()
   }
 
-  /**
-   * Multi-repo isolation: build .agents/<callsign>/ containing a worktree of
-   * every repo (all on the agent's branch) plus symlinks to shared non-repo
-   * files, so one agent works across all repos without conflicts.
-   */
-  private async createAgentMirror(
-    config: WorkspaceConfig,
-    placement: PanePlacement
-  ): Promise<void> {
-    const agentDir = join(config.path, placement.worktreeDir!)
-    mkdirSync(agentDir, { recursive: true })
-    // The mirror root is not a git repo, so this guidance file is invisible
-    // to git; codex reads AGENTS.md from its cwd upward.
-    try {
-      const agentsMd = join(agentDir, 'AGENTS.md')
-      if (!existsSync(agentsMd) || !readFileSync(agentsMd, 'utf8').includes('VibeTerminal v3')) {
-        writeFileSync(agentsMd, MIRROR_AGENTS_MD)
-      }
-    } catch {
-      // best-effort
-    }
-    for (const repo of config.repos ?? []) {
-      const repoRoot = join(config.path, repo.dir)
-      const target = join(agentDir, repo.dir)
-      if (existsSync(target)) continue // reuse from a previous run
-      const info = await getGitInfo(repoRoot)
-      const base = repo.baseBranch || info.branch || 'HEAD'
-      await addWorktree(repoRoot, target, base)
-    }
-    for (const entry of readdirSync(config.path)) {
-      if (entry === AGENTS_DIR || entry === WORKTREES_DIR || entry === '.git') continue
-      if (entry === '.DS_Store') continue
-      if ((config.repos ?? []).some((r) => r.dir === entry)) continue
-      const link = join(agentDir, entry)
-      if (existsSync(link)) continue
-      try {
-        symlinkSync(join(config.path, entry), link)
-      } catch {
-        // broken/duplicate symlink — non-fatal
-      }
-    }
-  }
-
   private spawnPane(
     config: WorkspaceConfig,
     pane: { id: string; kind: AgentKind },
-    placement: PanePlacement,
     resume: boolean,
     mainBranch: string | null,
     panes: Map<string, PaneRuntime>
   ): void {
-    const cwd = placement.worktreeDir
-      ? join(config.path, placement.worktreeDir)
-      : config.path
+    const cwd = config.path
     const ptyId = `${config.id}:${pane.id}:${randomUUID().slice(0, 8)}`
     const settings = this.store.data.settings
     const flags =
@@ -336,7 +236,8 @@ export class Workspaces {
       paneId: pane.id,
       ptyId,
       cwd,
-      branch: placement.branch ?? mainBranch,
+      liveCwd: cwd,
+      branch: mainBranch,
       status: 'running'
     })
   }
@@ -346,12 +247,10 @@ export class Workspaces {
     for (const [workspaceId, panes] of this.runtime) {
       const config = this.store.getWorkspace(workspaceId)
       if (!config) continue
-      const placements = planPlacements(config)
-      for (let i = 0; i < config.panes.length; i++) {
-        const pane = config.panes[i]
+      for (const pane of config.panes) {
         const existing = panes.get(pane.id)
         if (existing?.status !== 'running') continue
-        this.spawnPane(config, pane, placements[i], true, existing.branch, panes)
+        this.spawnPane(config, pane, true, existing.branch, panes)
       }
     }
     this.notify()
@@ -364,32 +263,8 @@ export class Workspaces {
 
     const pane = { id: randomUUID(), kind }
     config.panes.push(pane)
-
-    const isAgent = kind === 'claude' || kind === 'codex'
-    const multi = (config.repos?.length ?? 0) > 0
-    let placement: PanePlacement = { paneId: pane.id, worktreeDir: null, branch: null }
-    if (config.useWorktrees && isAgent && multi) {
-      let index = config.panes.length - 1
-      let dir = `${AGENTS_DIR}/${callsign(index)}`
-      while (existsSync(join(config.path, dir))) {
-        dir = `${AGENTS_DIR}/${callsign(++index)}`
-      }
-      placement = { paneId: pane.id, worktreeDir: dir, branch: null }
-      await this.createAgentMirror(config, placement)
-    } else if (config.useWorktrees && isAgent) {
-      let index = config.panes.length - 1
-      let spec = worktreeSpec(index)
-      while (existsSync(join(config.path, spec.worktreeDir))) {
-        spec = worktreeSpec(++index)
-      }
-      placement = { paneId: pane.id, ...spec, branch: null }
-      const info = await getGitInfo(config.path)
-      const base = config.baseBranch || info.branch || 'HEAD'
-      await addWorktree(config.path, placement.worktreeDir!, base)
-    }
-
     const info = await getGitInfo(config.path)
-    this.spawnPane(config, pane, placement, false, info.branch, panes)
+    this.spawnPane(config, pane, false, info.branch, panes)
     this.store.upsertWorkspace(config)
     this.notify()
   }
@@ -420,10 +295,9 @@ export class Workspaces {
     const panes = this.runtime.get(id)
     const runtime = panes?.get(paneId)
     if (!config || !panes || !runtime || runtime.status === 'running') return
-    const index = config.panes.findIndex((p) => p.id === paneId)
-    if (index < 0) return
-    const placements = planPlacements(config)
-    this.spawnPane(config, config.panes[index], placements[index], true, runtime.branch, panes)
+    const pane = config.panes.find((p) => p.id === paneId)
+    if (!pane) return
+    this.spawnPane(config, pane, true, runtime.branch, panes)
     this.notify()
   }
 
@@ -441,16 +315,32 @@ export class Workspaces {
     return status
   }
 
+  /** Linked worktrees that live under the workspace folder (never the main checkout). */
+  private async workspaceWorktrees(
+    config: WorkspaceConfig
+  ): Promise<{ dir: string; path: string; branch: string | null; head: string | null }[]> {
+    const root = resolve(config.path)
+    return (await listWorktrees(config.path))
+      .filter((w) => resolve(w.path) !== root && resolve(w.path).startsWith(root + '/'))
+      .map((w) => ({
+        dir: relative(root, resolve(w.path)),
+        path: w.path,
+        branch: w.branch,
+        head: w.head
+      }))
+  }
+
   /**
-   * Changes grouped by checkout: the main repo(s) plus every agent worktree.
-   * All checkouts are queried in parallel and empty ones are dropped —
-   * a multi-repo workspace with several mirrors spawns dozens of git calls.
+   * Changes grouped by checkout: the main checkout, embedded child repos, and
+   * every worktree discovered under the workspace folder. Committed changes in
+   * worktrees are measured against the pinned baseBranch (three-dot, so the
+   * range survives base moving forward). A missing base degrades to
+   * status-only changes rather than a wrong range.
    */
   async gitChanges(id: string): Promise<ChangeGroup[]> {
     const config = this.store.getWorkspace(id)
     if (!config) return []
-    const placements = planPlacements(config)
-    const callsignOf = (dir: string): string => dir.split('/').pop() ?? dir
+    const rootInfo = await getGitInfo(config.path)
     const jobs: Promise<ChangeGroup | null>[] = []
     const job = (
       dir: string,
@@ -466,45 +356,12 @@ export class Workspaces {
       )
     }
 
-    if ((config.repos?.length ?? 0) > 0) {
-      const infos = await Promise.all(
-        config.repos!.map((repo) => getGitInfo(join(config.path, repo.dir)))
-      )
-      config.repos!.forEach((repo, i) => {
-        job(
-          repo.dir,
-          `${repo.dir} — main`,
-          infos[i].branch,
-          null,
-          join(config.path, repo.dir)
-        )
-      })
-      for (const placement of placements) {
-        if (!placement.worktreeDir) continue
-        config.repos!.forEach((repo, i) => {
-          const dir = `${placement.worktreeDir}/${repo.dir}`
-          const abs = join(config.path, dir)
-          if (!existsSync(abs)) return
-          const base = repo.baseBranch || infos[i].branch
-          job(
-            dir,
-            `${callsignOf(placement.worktreeDir!)} · ${repo.dir}`,
-            base ? `detached @ ${base}` : null,
-            base,
-            abs
-          )
-        })
-      }
-      return (await Promise.all(jobs)).filter((g): g is ChangeGroup => g !== null)
-    }
-
-    const rootInfo = await getGitInfo(config.path)
     const embeddedDirs: string[] = []
     if (rootInfo.isRepo) {
       try {
         for (const entry of readdirSync(config.path, { withFileTypes: true })) {
           if (!entry.isDirectory()) continue
-          if (entry.name === WORKTREES_DIR || entry.name === AGENTS_DIR) continue
+          if (entry.name === WORKTREES_DIR || entry.name === '.agents') continue
           if (existsSync(join(config.path, entry.name, '.git'))) {
             embeddedDirs.push(entry.name)
           }
@@ -540,19 +397,15 @@ export class Workspaces {
           )
         )
       }
-    }
-    for (const placement of placements) {
-      if (!placement.worktreeDir) continue
-      const abs = join(config.path, placement.worktreeDir)
-      if (!existsSync(abs)) continue
-      const base = config.baseBranch || rootInfo.branch
-      job(
-        placement.worktreeDir,
-        callsignOf(placement.worktreeDir),
-        base ? `detached @ ${base}` : null,
-        base,
-        abs
-      )
+
+      const baseOk =
+        !!config.baseBranch && (await branchExists(config.path, config.baseBranch))
+      for (const wt of await this.workspaceWorktrees(config)) {
+        const base = baseOk ? config.baseBranch : null
+        const label = wt.branch ?? `${wt.dir.split('/').pop()} (detached)`
+        const warned = !baseOk && config.baseBranch ? `${label} — base missing` : label
+        job(wt.dir, warned, wt.branch ?? 'detached', base, wt.path)
+      }
     }
     return (await Promise.all(jobs)).filter((g): g is ChangeGroup => g !== null)
   }
@@ -587,21 +440,9 @@ export class Workspaces {
   async dirtyWorktrees(id: string): Promise<string[]> {
     const config = this.store.getWorkspace(id)
     if (!config) return []
-    const multi = (config.repos?.length ?? 0) > 0
     const dirty: string[] = []
-    for (const placement of planPlacements(config)) {
-      if (!placement.worktreeDir) continue
-      if (multi) {
-        for (const repo of config.repos ?? []) {
-          const dir = join(config.path, placement.worktreeDir, repo.dir)
-          if (existsSync(dir) && (await isDirty(dir))) {
-            dirty.push(`${placement.worktreeDir}/${repo.dir}`)
-          }
-        }
-      } else {
-        const dir = join(config.path, placement.worktreeDir)
-        if (existsSync(dir) && (await isDirty(dir))) dirty.push(placement.worktreeDir)
-      }
+    for (const wt of await this.workspaceWorktrees(config)) {
+      if (await isDirty(wt.path)) dirty.push(wt.dir)
     }
     return dirty
   }
@@ -616,33 +457,11 @@ export class Workspaces {
       this.runtime.delete(id)
     }
     if (config) {
-      if (options.removeWorktrees && config.useWorktrees) {
-        const multi = (config.repos?.length ?? 0) > 0
-        for (const placement of planPlacements(config)) {
-          if (!placement.worktreeDir) continue
-          const dir = join(config.path, placement.worktreeDir)
-          if (!existsSync(dir)) continue
-          if (multi) {
-            for (const repo of config.repos ?? []) {
-              const target = join(dir, repo.dir)
-              if (existsSync(target)) {
-                await removeWorktree(join(config.path, repo.dir), target).catch(() => {})
-              }
-            }
-            // remove leftover symlinks and the mirror folder itself
-            rmSync(dir, { recursive: true, force: true })
-          } else {
-            await removeWorktree(config.path, placement.worktreeDir).catch(() => {})
-          }
+      if (options.removeWorktrees) {
+        for (const wt of await this.workspaceWorktrees(config)) {
+          await removeWorktree(config.path, wt.dir).catch(() => {})
         }
-        if (multi) {
-          for (const repo of config.repos ?? []) {
-            await pruneWorktrees(join(config.path, repo.dir))
-          }
-          rmSync(join(config.path, AGENTS_DIR), { recursive: true, force: true })
-        } else {
-          await pruneWorktrees(config.path)
-        }
+        await pruneWorktrees(config.path)
       }
       config.wasRunning = false
       this.store.upsertWorkspace(config)

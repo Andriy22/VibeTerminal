@@ -3,6 +3,7 @@ import { appendFileSync, existsSync, readdirSync, readFileSync } from 'fs'
 import { join } from 'path'
 import { promisify } from 'util'
 import type { GitInfo, GitScan, RepoInfo } from '../shared/types'
+import { parseWorktreeList, type WorktreeEntry } from '../shared/worktrees'
 
 const execFileAsync = promisify(execFile)
 
@@ -118,6 +119,54 @@ export async function removeWorktree(repoPath: string, dir: string): Promise<voi
 
 export async function pruneWorktrees(repoPath: string): Promise<void> {
   await tryGit(repoPath, 'worktree', 'prune')
+}
+
+/** All checkouts of the repo, from `git worktree list --porcelain`. */
+export async function listWorktrees(repoPath: string): Promise<WorktreeEntry[]> {
+  const output = await tryGit(repoPath, 'worktree', 'list', '--porcelain')
+  return output ? parseWorktreeList(output) : []
+}
+
+/** Default branch: origin/HEAD if set, else the currently checked-out branch. */
+export async function resolveDefaultBranch(repoPath: string): Promise<string | null> {
+  const originHead = await tryGit(
+    repoPath,
+    'symbolic-ref',
+    '--short',
+    'refs/remotes/origin/HEAD'
+  )
+  if (originHead) return originHead.replace(/^origin\//, '')
+  return (await tryGit(repoPath, 'branch', '--show-current')) || null
+}
+
+export async function branchExists(repoPath: string, branch: string): Promise<boolean> {
+  const ref = await tryGit(
+    repoPath,
+    'rev-parse',
+    '--verify',
+    '--quiet',
+    `refs/heads/${branch}`
+  )
+  return ref !== null
+}
+
+/** true when `ref` is fully contained in `base` (safe to delete). */
+export async function isMerged(
+  repoPath: string,
+  ref: string,
+  base: string
+): Promise<boolean> {
+  try {
+    await git(repoPath, 'merge-base', '--is-ancestor', ref, base)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** `git branch -d` — safe delete only; silently no-ops when git refuses. */
+export async function deleteBranchSafe(repoPath: string, branch: string): Promise<void> {
+  await tryGit(repoPath, 'branch', '-d', branch)
 }
 
 export async function isDirty(dir: string): Promise<boolean> {

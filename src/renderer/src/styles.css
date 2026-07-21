@@ -2717,3 +2717,17 @@ code {
     animation: none !important;
   }
 }
+
+.pane-branchoff {
+  position: absolute;
+  top: 34px;
+  right: 8px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 8px;
+  background: var(--surface, rgba(20, 24, 28, 0.95));
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+}

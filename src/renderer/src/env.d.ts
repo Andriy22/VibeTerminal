@@ -1,9 +1,12 @@
-import type { VibeApi } from '@shared/api'
+// Ambient file — no top-level imports, or the wildcard module
+// declarations below silently stop applying.
+declare module '*.css'
 
-declare global {
-  interface Window {
-    vibe: VibeApi
-  }
+declare module '*.md?raw' {
+  const content: string
+  export default content
 }
 
-declare module '*.css'
+interface Window {
+  vibe: import('@shared/api').VibeApi
+}

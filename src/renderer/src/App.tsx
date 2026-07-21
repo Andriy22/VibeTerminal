@@ -9,6 +9,7 @@ import WorkspaceView from './components/WorkspaceView'
 import LauncherModal from './components/LauncherModal'
 import SettingsModal from './components/SettingsModal'
 import MemoryModal from './components/MemoryModal'
+import ChangelogModal from './components/ChangelogModal'
 import Onboarding from './components/Onboarding'
 import CloseDialog from './components/CloseDialog'
 import DeleteDialog from './components/DeleteDialog'
@@ -19,6 +20,7 @@ export default function App(): JSX.Element {
   const launcherOpen = useApp((s) => s.launcherOpen)
   const settingsOpen = useApp((s) => s.settingsOpen)
   const memoryOpen = useApp((s) => s.memoryOpen)
+  const changelogOpen = useApp((s) => s.changelogOpen)
   const onboardingOpen = useApp((s) => s.onboardingOpen)
   const closing = useApp((s) => s.closing)
   const deleting = useApp((s) => s.deleting)
@@ -63,6 +65,7 @@ export default function App(): JSX.Element {
       {launcherOpen && <LauncherModal />}
       {settingsOpen && <SettingsModal />}
       {memoryOpen && <MemoryModal />}
+      {changelogOpen && <ChangelogModal />}
       {onboardingOpen && <Onboarding />}
       {closing && <CloseDialog />}
       {deleting && <DeleteDialog />}

@@ -289,6 +289,7 @@ code {
 
 /* Toolbar icon buttons — quiet by default, one accented primary. */
 .tool-button {
+  position: relative;
   width: 28px;
   height: 28px;
   flex: none;
@@ -2934,4 +2935,204 @@ code {
   .iso-check {
     transition: none !important;
   }
+}
+
+/* ---------- changelog (what's new) ---------- */
+
+/* Unread pip on a tool button — cleared once the changelog is opened. */
+.tool-dot {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--glass-strong);
+}
+
+button.brand-version:hover {
+  color: var(--text);
+}
+
+.changelog-modal {
+  width: 560px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.changelog-head {
+  flex: none;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.changelog-head h2 {
+  margin-bottom: 0;
+}
+
+.changelog-head .dim {
+  font-size: 11.5px;
+}
+
+/* The scroll edges of the release list. Each fade retracts to 0 at the end it
+   belongs to, so the list looks bounded mid-scroll but nothing is dimmed once
+   you have actually reached the top or the bottom. */
+@property --fade-top {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --fade-bottom {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
+@keyframes changelog-scroll-edges {
+  0% {
+    --fade-top: 0px;
+    --fade-bottom: 24px;
+  }
+  6%,
+  94% {
+    --fade-top: 24px;
+    --fade-bottom: 24px;
+  }
+  100% {
+    --fade-top: 24px;
+    --fade-bottom: 0px;
+  }
+}
+
+.changelog-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  /* Don't hand the scroll to the workspace behind once the list bottoms out. */
+  overscroll-behavior: contain;
+  padding: 10px 20px 16px;
+  /* Soften the cut where content passes the header rule and the card's bottom
+     edge — without this, lines are sliced mid-glyph and read as a clipping bug. */
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--fade-top),
+    #000 calc(100% - var(--fade-bottom)),
+    transparent 100%
+  );
+  animation: changelog-scroll-edges linear both;
+  animation-timeline: scroll(self block);
+}
+
+.changelog-release {
+  padding: 14px 0 8px;
+}
+
+.changelog-release + .changelog-release {
+  border-top: 1px solid var(--glass-border);
+}
+
+.changelog-release-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.changelog-version {
+  font-family: var(--mono);
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.changelog-latest {
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  border-radius: 999px;
+  padding: 1px 7px;
+}
+
+.changelog-date {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--text-dim);
+}
+
+.changelog-note {
+  margin: 6px 0 4px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-dim);
+}
+
+.changelog-section {
+  margin: 10px 0;
+  --cat: var(--text-dim);
+}
+
+.changelog-section.cat-added {
+  --cat: var(--ok);
+}
+
+.changelog-section.cat-fixed {
+  --cat: var(--codex);
+}
+
+.changelog-section.cat-reworked {
+  --cat: var(--warn);
+}
+
+.changelog-section.cat-removed {
+  --cat: var(--danger);
+}
+
+.changelog-cat {
+  display: inline-block;
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--cat);
+  background: color-mix(in srgb, var(--cat) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--cat) 35%, transparent);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+.changelog-section ul {
+  list-style: none;
+  margin: 7px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.changelog-section li {
+  position: relative;
+  padding-left: 16px;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.changelog-section li::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 0.6em;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--cat) 70%, transparent);
 }

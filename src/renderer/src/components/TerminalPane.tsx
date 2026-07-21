@@ -1,10 +1,11 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import '@xterm/xterm/css/xterm.css'
 import type { PaneConfig, PaneRuntime } from '@shared/types'
 import { callsign } from '@shared/callsigns'
+import { branchOffInstruction, slugify } from '@shared/worktrees'
 import { themeById, type TerminalTheme } from '@shared/themes'
 import { ptyBridge } from '../ptyBridge'
 import { useApp } from '../store'
@@ -142,6 +143,37 @@ export default function TerminalPane({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [theme.id])
 
+  const [branchOffOpen, setBranchOffOpen] = useState(false)
+  const [branchName, setBranchName] = useState('')
+  const workspace = useApp((s) => s.snapshot.find((w) => w.config.id === workspaceId))
+
+  const openBranchOff = async (): Promise<void> => {
+    const path = workspace?.config.path
+    if (!path) return
+    const info = await window.vibe.gitInfo(path)
+    if (!info.isRepo || !info.hasCommits) {
+      toast('Branch off needs a git repo with at least one commit.')
+      return
+    }
+    setBranchName('')
+    setBranchOffOpen(true)
+  }
+
+  const submitBranchOff = (): void => {
+    const name = slugify(branchName)
+    if (!name || name === 'workspace') return
+    const instruction = branchOffInstruction(
+      pane.kind,
+      name,
+      workspace?.config.baseBranch ?? null
+    )
+    ptyBridge.write(runtime.ptyId, instruction)
+    // Send Enter separately so agent TUIs treat the text as one pasted line.
+    window.setTimeout(() => ptyBridge.write(runtime.ptyId, '\r'), 80)
+    setBranchOffOpen(false)
+    termRef.current?.focus()
+  }
+
   const remove = async (): Promise<void> => {
     try {
       await window.vibe.removePane(workspaceId, pane.id)
@@ -154,7 +186,8 @@ export default function TerminalPane({
     await window.vibe.restartPane(workspaceId, pane.id)
   }
 
-  const branchLabel = runtime.branch ?? runtime.cwd.split('/').pop() ?? ''
+  const paneCwd = runtime.liveCwd ?? runtime.cwd
+  const branchLabel = runtime.branch ?? paneCwd.split('/').pop() ?? ''
 
   return (
     <section
@@ -185,8 +218,17 @@ export default function TerminalPane({
           {meta.symbol} {meta.label}
         </span>
         <span className="pane-callsign">{callsign(paneIndex)}</span>
-        <span className="pane-branch">{branchLabel}</span>
+        <span className="pane-branch" title={paneCwd}>
+          {branchLabel}
+        </span>
         <span className="pane-spacer" />
+        <button
+          className="pane-button"
+          title="Branch off — isolate this pane's work in a new worktree"
+          onClick={() => void openBranchOff()}
+        >
+          ⑂
+        </button>
         <button
           className="pane-button"
           title={maximized ? 'Restore grid' : 'Maximize pane'}
@@ -198,6 +240,25 @@ export default function TerminalPane({
           ✕
         </button>
       </header>
+      {branchOffOpen && (
+        <div className="pane-branchoff">
+          <input
+            autoFocus
+            className="text-input"
+            placeholder="task name, e.g. fix-login"
+            value={branchName}
+            onChange={(e) => setBranchName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') submitBranchOff()
+              if (e.key === 'Escape') setBranchOffOpen(false)
+            }}
+          />
+          <span className="dim">
+            → {slugify(branchName) !== 'workspace' ? slugify(branchName) : '…'}
+            {workspace?.config.baseBranch ? ` from ${workspace.config.baseBranch}` : ''}
+          </span>
+        </div>
+      )}
       <div className="pane-term" ref={containerRef} />
       {isFocused && micState !== 'idle' && (
         <div className={`pane-mic ${micState}`}>

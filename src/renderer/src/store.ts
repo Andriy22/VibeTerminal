@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Settings, WorkspaceSnapshot } from '@shared/types'
+import type { Settings, WorkspaceSnapshot, WorktreeStatus } from '@shared/types'
 
 interface Toast {
   id: number
@@ -26,10 +26,10 @@ interface AppState {
   paneProcs: Record<string, string>
   /** Activity per ptyId: streaming output, waiting for input, or quiet. */
   paneActivity: Record<string, 'working' | 'attention' | 'idle'>
-  /** workspace pending the close dialog, with its dirty worktrees */
-  closing: { workspaceId: string; dirty: string[] } | null
-  /** workspace pending the delete dialog, with its dirty worktrees */
-  deleting: { workspaceId: string; dirty: string[] } | null
+  /** workspace pending the close dialog, with its discovered worktrees */
+  closing: { workspaceId: string; worktrees: WorktreeStatus[] } | null
+  /** workspace pending the delete dialog, with its discovered worktrees */
+  deleting: { workspaceId: string; worktrees: WorktreeStatus[] } | null
   toasts: Toast[]
 
   refresh: () => Promise<void>
@@ -45,8 +45,8 @@ interface AppState {
   setMicState: (state: 'idle' | 'recording' | 'transcribing') => void
   setPaneProc: (ptyId: string, name: string) => void
   setPaneActivity: (ptyId: string, state: 'working' | 'attention' | 'idle') => void
-  setClosing: (closing: { workspaceId: string; dirty: string[] } | null) => void
-  setDeleting: (deleting: { workspaceId: string; dirty: string[] } | null) => void
+  setClosing: (closing: { workspaceId: string; worktrees: WorktreeStatus[] } | null) => void
+  setDeleting: (deleting: { workspaceId: string; worktrees: WorktreeStatus[] } | null) => void
   toast: (message: string) => void
   dismissToast: (id: number) => void
 }

@@ -124,14 +124,14 @@ export default function Sidebar(): JSX.Element {
   }
 
   const requestClose = async (id: string): Promise<void> => {
-    const dirty = await window.vibe.dirtyWorktrees(id)
-    setClosing({ workspaceId: id, dirty })
+    const worktrees = await window.vibe.worktreeStatus(id)
+    setClosing({ workspaceId: id, worktrees })
   }
 
   const remove = async (id: string): Promise<void> => {
     setMenuFor(null)
-    const dirty = await window.vibe.dirtyWorktrees(id)
-    useApp.getState().setDeleting({ workspaceId: id, dirty })
+    const worktrees = await window.vibe.worktreeStatus(id)
+    useApp.getState().setDeleting({ workspaceId: id, worktrees })
   }
 
   const startRename = (id: string, current: string): void => {

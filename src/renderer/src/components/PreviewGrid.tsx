@@ -1,4 +1,4 @@
-import type { AgentKind } from '@shared/types'
+import type { AgentKind, IsolationMode } from '@shared/types'
 import { gridRows } from '@shared/layout'
 import { callsign } from '@shared/callsigns'
 import { KIND_META } from '../kinds'
@@ -6,7 +6,7 @@ import { KIND_META } from '../kinds'
 interface Props {
   count: number
   kinds: AgentKind[]
-  useWorktrees: boolean
+  isolation: IsolationMode
   cols?: number | null
   onCycle: (index: number) => void
 }
@@ -15,7 +15,7 @@ interface Props {
 export default function PreviewGrid({
   count,
   kinds,
-  useWorktrees,
+  isolation,
   cols,
   onCycle
 }: Props): JSX.Element {
@@ -32,7 +32,6 @@ export default function PreviewGrid({
               const i = start + colIdx
               const kind = kinds[i]
               const meta = KIND_META[kind]
-              const isAgent = kind !== 'shell'
               return (
                 <button
                   key={i}
@@ -49,7 +48,7 @@ export default function PreviewGrid({
                   <span className="preview-badge">
                     {i === 0
                       ? 'main checkout'
-                      : useWorktrees && isAgent
+                      : isolation === 'worktrees' && kind !== 'shell'
                         ? 'worktree'
                         : '·'}
                   </span>

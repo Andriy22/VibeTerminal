@@ -5,24 +5,22 @@ export interface PaneConfig {
   kind: AgentKind
 }
 
-/** One repo inside a multi-repo workspace folder. */
-export interface RepoChoice {
-  /** Directory name relative to the workspace folder. */
-  dir: string
-  /** Branch worktrees are cut from. null = that repo's current branch. */
-  baseBranch: string | null
-}
+/**
+ * 'shared' = all panes in the main checkout, branch off on demand.
+ * 'worktrees' = every agent pane after alpha starts in its own detached
+ * worktree at the base branch (the classic eager mode).
+ */
+export type IsolationMode = 'shared' | 'worktrees'
 
 export interface WorkspaceConfig {
   id: string
   name: string
   path: string
   panes: PaneConfig[]
-  useWorktrees: boolean
-  /** Branch worktrees are cut from. null = branch that was current at launch. */
+  /** Diff base: committed changes are measured against this branch. Pinned at creation. */
   baseBranch: string | null
-  /** Non-empty = multi-repo folder: agents get .agents/<callsign> mirrors. */
-  repos?: RepoChoice[]
+  /** Missing = 'shared' (workspaces created before the mode choice existed). */
+  isolation?: IsolationMode
   /** Fixed grid column count. null/undefined = auto (2-column rows). */
   gridCols?: number | null
   /** Accent color. null/undefined = group color, else stable auto color. */
@@ -44,6 +42,8 @@ export interface PaneRuntime {
   paneId: string
   ptyId: string
   cwd: string
+  /** Where the pane's shell actually is now (agents cd into worktrees). */
+  liveCwd?: string
   branch: string | null
   status: PaneStatus
   exitCode?: number
@@ -99,20 +99,6 @@ export interface GitInfo {
   hasCommits: boolean
 }
 
-export interface RepoInfo {
-  dir: string
-  branch: string | null
-  branches: string[]
-}
-
-/** Result of inspecting a folder chosen in the launcher. */
-export interface GitScan {
-  /** 'repo' = folder is a repo; 'multi' = contains child repos; 'none' = neither. */
-  kind: 'repo' | 'multi' | 'none'
-  info: GitInfo
-  repos: RepoInfo[]
-}
-
 export interface PathSuggestion {
   path: string
   name: string
@@ -152,6 +138,14 @@ export interface ChangeGroup {
   changes: ChangedFile[]
 }
 
+/** One discovered worktree under the workspace folder, for the cleanup dialogs. */
+export interface WorktreeStatus {
+  dir: string
+  branch: string | null
+  dirty: boolean
+  merged: boolean
+}
+
 /** Renderer → pty host (over MessagePort) */
 export type PtyInMessage =
   | { type: 'write'; ptyId: string; data: string }
@@ -180,4 +174,6 @@ export type HostControlMessage =
   | { type: 'kill'; ptyId: string }
 
 /** Pty host → main */
-export type HostEventMessage = { type: 'exited'; ptyId: string; exitCode: number }
+export type HostEventMessage =
+  | { type: 'exited'; ptyId: string; exitCode: number }
+  | { type: 'cwd'; ptyId: string; cwd: string }

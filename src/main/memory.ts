@@ -98,26 +98,6 @@ export async function resolveWorkspaceMemory(
   const scopes: MemoryScope[] = []
   const repoKeys: string[] = []
 
-  if ((config.repos?.length ?? 0) > 0) {
-    for (const repo of config.repos!) {
-      const key = await repoKey(join(config.path, repo.dir))
-      repoKeys.push(key)
-      scopes.push({ key, label: repo.dir })
-    }
-    const groupKey = `group-${hash(config.path)}`
-    const groupDir = join(root, groupKey)
-    mkdirSync(groupDir, { recursive: true })
-    const meta: GroupMeta = {
-      name: config.path.split('/').pop() || config.path,
-      path: config.path,
-      members: repoKeys
-    }
-    writeFileSync(join(groupDir, 'meta.json'), JSON.stringify(meta, null, 2))
-    scopes.push({ key: groupKey, label: `${meta.name} (project)` })
-    // cross-repo knowledge is the default for multi-repo workspaces
-    return { scopes, writeScope: groupKey }
-  }
-
   const key = await repoKey(config.path)
   repoKeys.push(key)
   scopes.push({ key, label: config.path.split('/').pop() || config.path })
@@ -188,21 +168,6 @@ export function memoryLaunchArgs(
 }
 
 export const SKILL_VERSION_EXPORT = 'v3'
-
-/** Dropped into multi-repo mirror roots (not a git repo, so invisible to git). */
-export const MIRROR_AGENTS_MD = `<!-- managed by VibeTerminal v3 -->
-# Agent workspace
-
-This folder is your isolated mirror: each subdirectory is a detached git
-worktree of a real repo. Work normally; create a branch before finishing
-so your commits are kept.
-
-## Project memory — use it
-This project has persistent memory shared by all agents via the vibememory
-MCP tools. ALWAYS \`memory_search\` before significant work; save durable
-learnings with \`memory_write\` when done. One fact per note; link with
-[[note-id]] using ids the tools return.
-`
 
 const SKILL_VERSION = 'v3'
 const MEMORY_GUIDE = `This project has persistent memory shared by all agents across sessions,

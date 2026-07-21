@@ -13,16 +13,13 @@ const api: VibeApi = {
   expandPath: (input) => ipcRenderer.invoke('path:expand', input),
   statPath: (input) => ipcRenderer.invoke('path:stat', input),
   gitInfo: (path) => ipcRenderer.invoke('git:info', path),
-  gitScan: (path) => ipcRenderer.invoke('git:scan', path),
   pickFolder: () => ipcRenderer.invoke('dialog:pick-folder'),
 
   snapshot: () => ipcRenderer.invoke('ws:snapshot'),
   createWorkspace: (draft: WorkspaceDraftDto) => ipcRenderer.invoke('ws:create', draft),
   launchWorkspace: (id) => ipcRenderer.invoke('ws:launch', id),
-  closeWorkspace: (id, removeWorktrees) =>
-    ipcRenderer.invoke('ws:close', id, removeWorktrees),
-  deleteWorkspace: (id, removeWorktrees) =>
-    ipcRenderer.invoke('ws:delete', id, removeWorktrees),
+  closeWorkspace: (id, remove) => ipcRenderer.invoke('ws:close', id, remove),
+  deleteWorkspace: (id, remove) => ipcRenderer.invoke('ws:delete', id, remove),
   renameWorkspace: (id, name) => ipcRenderer.invoke('ws:rename', id, name),
   setGridCols: (id, cols) => ipcRenderer.invoke('ws:set-grid', id, cols),
   setWorkspaceColor: (id, color) => ipcRenderer.invoke('ws:set-color', id, color),
@@ -49,7 +46,7 @@ const api: VibeApi = {
   gitChanges: (workspaceId) => ipcRenderer.invoke('git:changes', workspaceId),
   gitFileDiff: (workspaceId, dir, file, mode) =>
     ipcRenderer.invoke('git:file-diff', workspaceId, dir, file, mode),
-  dirtyWorktrees: (id) => ipcRenderer.invoke('ws:dirty-worktrees', id),
+  worktreeStatus: (id) => ipcRenderer.invoke('ws:worktree-status', id),
   addPane: (id, kind) => ipcRenderer.invoke('ws:add-pane', id, kind),
   removePane: (id, paneId) => ipcRenderer.invoke('ws:remove-pane', id, paneId),
   restartPane: (id, paneId) => ipcRenderer.invoke('ws:restart-pane', id, paneId),

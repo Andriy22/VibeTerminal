@@ -1,8 +1,9 @@
 import { execFile } from 'child_process'
-import { appendFileSync, existsSync, readdirSync, readFileSync } from 'fs'
+import { appendFileSync, existsSync, readFileSync } from 'fs'
 import { join } from 'path'
 import { promisify } from 'util'
-import type { GitInfo, GitScan, RepoInfo } from '../shared/types'
+import type { GitInfo } from '../shared/types'
+import { parseWorktreeList, type WorktreeEntry } from '../shared/worktrees'
 
 const execFileAsync = promisify(execFile)
 
@@ -47,45 +48,6 @@ export async function getGitInfo(path: string): Promise<GitInfo> {
   }
 }
 
-/**
- * Inspect a folder: a repo itself, a container of child repos, or neither.
- * Embedded child repos win over the parent being a repo: git doesn't track
- * embedded repo contents, so worktrees of such a parent would be empty —
- * per-repo mirrors are the only isolation that actually contains the code.
- */
-export async function scanGit(path: string): Promise<GitScan> {
-  const info = await getGitInfo(path)
-  const repos: RepoInfo[] = []
-  try {
-    for (const entry of readdirSync(path, { withFileTypes: true })) {
-      if (!entry.isDirectory() || entry.name.startsWith('.')) continue
-      if (!existsSync(join(path, entry.name, '.git'))) continue
-      const child = await getGitInfo(join(path, entry.name))
-      if (child.isRepo) {
-        repos.push({ dir: entry.name, branch: child.branch, branches: child.branches })
-      }
-    }
-  } catch {
-    // unreadable folder — treat as no repos
-  }
-  repos.sort((a, b) => a.dir.localeCompare(b.dir))
-  if (repos.length > 0) return { kind: 'multi', info, repos }
-  if (info.isRepo) return { kind: 'repo', info, repos: [] }
-  return { kind: 'none', info, repos }
-}
-
-/** Make sure `path` is a git repo with at least one commit (worktrees need one). */
-export async function ensureRepo(path: string): Promise<void> {
-  const info = await getGitInfo(path)
-  if (!info.isRepo) await git(path, 'init')
-  if (!info.hasCommits) {
-    const head = await tryGit(path, 'rev-parse', '--verify', 'HEAD')
-    if (head === null) {
-      await git(path, 'commit', '--allow-empty', '-m', 'init (vibeterminal)')
-    }
-  }
-}
-
 /** Keep .worktrees/ out of git status without touching the project's .gitignore. */
 export function ensureExcluded(repoPath: string, pattern: string): void {
   const excludeFile = join(repoPath, '.git', 'info', 'exclude')
@@ -101,10 +63,10 @@ export function ensureExcluded(repoPath: string, pattern: string): void {
 
 /**
  * Detached worktree at the base branch's commit — same code state, no new
- * branch (git forbids the same branch in two worktrees). Commits made inside
- * are preserved via HEAD/reflog until a branch is created for them.
+ * branch. Commits made inside are preserved via HEAD/reflog until a branch
+ * is created for them. Used by the eager 'worktrees' isolation mode.
  */
-export async function addWorktree(
+export async function addWorktreeDetached(
   repoPath: string,
   dir: string,
   base: string
@@ -118,6 +80,54 @@ export async function removeWorktree(repoPath: string, dir: string): Promise<voi
 
 export async function pruneWorktrees(repoPath: string): Promise<void> {
   await tryGit(repoPath, 'worktree', 'prune')
+}
+
+/** All checkouts of the repo, from `git worktree list --porcelain`. */
+export async function listWorktrees(repoPath: string): Promise<WorktreeEntry[]> {
+  const output = await tryGit(repoPath, 'worktree', 'list', '--porcelain')
+  return output ? parseWorktreeList(output) : []
+}
+
+/** Default branch: origin/HEAD if set, else the currently checked-out branch. */
+export async function resolveDefaultBranch(repoPath: string): Promise<string | null> {
+  const originHead = await tryGit(
+    repoPath,
+    'symbolic-ref',
+    '--short',
+    'refs/remotes/origin/HEAD'
+  )
+  if (originHead) return originHead.replace(/^origin\//, '')
+  return (await tryGit(repoPath, 'branch', '--show-current')) || null
+}
+
+export async function branchExists(repoPath: string, branch: string): Promise<boolean> {
+  const ref = await tryGit(
+    repoPath,
+    'rev-parse',
+    '--verify',
+    '--quiet',
+    `refs/heads/${branch}`
+  )
+  return ref !== null
+}
+
+/** true when `ref` is fully contained in `base` (safe to delete). */
+export async function isMerged(
+  repoPath: string,
+  ref: string,
+  base: string
+): Promise<boolean> {
+  try {
+    await git(repoPath, 'merge-base', '--is-ancestor', ref, base)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** `git branch -d` — safe delete only; silently no-ops when git refuses. */
+export async function deleteBranchSafe(repoPath: string, branch: string): Promise<void> {
+  await tryGit(repoPath, 'branch', '-d', branch)
 }
 
 export async function isDirty(dir: string): Promise<boolean> {

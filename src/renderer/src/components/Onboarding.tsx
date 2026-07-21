@@ -26,7 +26,7 @@ const SLIDES = [
   },
   {
     title: 'Agents never collide',
-    body: 'Each agent works in its own git worktree on its own branch — alpha keeps the real checkout. Multi-repo folders get per-agent mirrors of every repo.',
+    body: 'All agents start in your checkout. Branch any pane off into its own worktree (⑂, or just ask the agent) when parallel tasks would collide.',
     illo: <IlloBranches />
   },
   {

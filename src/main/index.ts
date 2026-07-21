@@ -9,7 +9,7 @@ import {
 import { existsSync, statSync } from 'fs'
 import { join } from 'path'
 import type { AgentKind, Settings } from '../shared/types'
-import { getGitInfo, scanGit } from './git'
+import { getGitInfo } from './git'
 import { suggestPaths, expandTilde } from './pathComplete'
 import { listDir, readFileSmart, writeFileSmart } from './fsops'
 import { PtyHostManager } from './ptyHostManager'
@@ -87,7 +87,6 @@ function registerIpc(): void {
     }
   })
   ipcMain.handle('git:info', (_e, path: string) => getGitInfo(path))
-  ipcMain.handle('git:scan', (_e, path: string) => scanGit(path))
 
   ipcMain.handle('dialog:pick-folder', async () => {
     if (!mainWindow) return null
@@ -102,12 +101,13 @@ function registerIpc(): void {
     workspaces.createAndLaunch(draft)
   )
   ipcMain.handle('ws:launch', (_e, id: string) => workspaces.launch(id))
-  ipcMain.handle('ws:close', (_e, id: string, removeWorktrees: boolean) =>
-    workspaces.close(id, { removeWorktrees })
+  ipcMain.handle('ws:close', (_e, id: string, remove: string[]) =>
+    workspaces.close(id, { remove })
   )
-  ipcMain.handle('ws:delete', (_e, id: string, removeWorktrees: boolean) =>
-    workspaces.deleteWorkspace(id, removeWorktrees)
+  ipcMain.handle('ws:delete', (_e, id: string, remove: string[]) =>
+    workspaces.deleteWorkspace(id, remove)
   )
+  ipcMain.handle('ws:worktree-status', (_e, id: string) => workspaces.worktreeStatus(id))
   ipcMain.handle('ws:rename', (_e, id: string, name: string) =>
     workspaces.rename(id, name)
   )
@@ -182,7 +182,6 @@ function registerIpc(): void {
       : memoryRoot()
     void shell.openPath(existsSync(dir) ? dir : memoryRoot())
   })
-  ipcMain.handle('ws:dirty-worktrees', (_e, id: string) => workspaces.dirtyWorktrees(id))
   ipcMain.handle('ws:add-pane', (_e, id: string, kind: AgentKind) =>
     workspaces.addPane(id, kind)
   )

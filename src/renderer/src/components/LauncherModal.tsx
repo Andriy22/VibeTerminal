@@ -1,12 +1,41 @@
 import { useEffect, useRef, useState } from 'react'
-import type { AgentKind, GitScan } from '@shared/types'
+import type { AgentKind, GitInfo, IsolationMode } from '@shared/types'
 import { useApp } from '../store'
 import { kindSummary, nextKind } from '../kinds'
 import PathInput from './PathInput'
 import PreviewGrid from './PreviewGrid'
 import Icon from './Icon'
 import Segmented from './Segmented'
-import { IlloAgents, IlloApp, IlloBranches, IlloTools } from './Illustrations'
+import {
+  IlloAgents,
+  IlloApp,
+  IlloBranches,
+  IlloIsolationShared,
+  IlloIsolationWorktrees,
+  IlloTools
+} from './Illustrations'
+
+/** Aside panel content per isolation mode — previewed live while hovering a card. */
+const ISO_ASIDE: Record<IsolationMode, { title: string; illo: JSX.Element; tips: string[] }> = {
+  shared: {
+    title: 'Shared checkout',
+    illo: <IlloIsolationShared />,
+    tips: [
+      'Everything runs in your real checkout — zero setup, instant start.',
+      'Hit ⑂ on any pane (or just ask the agent) to branch off into .worktrees/<task>.',
+      'The diff view picks up every worktree automatically.'
+    ]
+  },
+  worktrees: {
+    title: 'Worktree per agent',
+    illo: <IlloIsolationWorktrees />,
+    tips: [
+      'Alpha keeps the real checkout; bravo, charlie… start in .worktrees/<callsign>.',
+      'Worktrees start detached at your base branch — identical code, no branch clutter.',
+      'Ask an agent to create a branch when its work is worth keeping.'
+    ]
+  }
+}
 
 const COUNTS = [1, 2, 4, 6, 8]
 const COL_OPTIONS: { value: number | null; label: string }[] = [
@@ -25,8 +54,8 @@ const STEPS = [
     illo: <IlloApp />,
     tips: [
       'Type an absolute path like in a shell — Tab and ↑↓ complete folders.',
-      'Git is detected automatically: a single repo, a folder of repos, or neither (git init on launch).',
-      'Multi-repo folders unlock per-agent mirrors of every repo.'
+      'Git is detected automatically — repo or plain folder, nothing is created for you.',
+      'The same folder can host several workspaces with different names.'
     ]
   },
   {
@@ -43,12 +72,12 @@ const STEPS = [
   {
     label: 'Isolation',
     icon: 'branch',
-    desc: 'How agents are kept from stepping on each other.',
+    desc: 'How agents are isolated, and which branch diffs compare against.',
     illo: <IlloBranches />,
     tips: [
-      'Alpha works in your real checkout; every other agent gets its own worktree.',
-      'Worktrees start detached at your chosen branch — identical code, no branch clutter.',
-      'Agents create a branch only when they commit something worth keeping.'
+      'Shared: everything runs in your checkout until a pane branches off with ⑂.',
+      'Worktree per agent: bravo, charlie… start detached in .worktrees/<callsign>.',
+      'Either way, diffs compare against the base branch you pick here.'
     ]
   },
   {
@@ -73,13 +102,13 @@ export default function LauncherModal(): JSX.Element {
   const [path, setPath] = useState('~/')
   const [expandedPath, setExpandedPath] = useState('')
   const [pathValid, setPathValid] = useState(false)
-  const [scan, setScan] = useState<GitScan | null>(null)
+  const [scan, setScan] = useState<GitInfo | null>(null)
   const [count, setCount] = useState(4)
   const [kinds, setKinds] = useState<AgentKind[]>(Array(8).fill('claude'))
   const [cols, setCols] = useState<number | null>(null)
-  const [useWorktrees, setUseWorktrees] = useState(true)
+  const [isolation, setIsolation] = useState<IsolationMode>('shared')
+  const [hoveredIso, setHoveredIso] = useState<IsolationMode | null>(null)
   const [baseBranch, setBaseBranch] = useState('')
-  const [repoBranches, setRepoBranches] = useState<Record<string, string>>({})
   const [yolo, setYolo] = useState(false)
   const [name, setName] = useState('')
   const [nameTouched, setNameTouched] = useState(false)
@@ -97,10 +126,10 @@ export default function LauncherModal(): JSX.Element {
       setExpandedPath(expanded)
       setPathValid(stat.isDirectory)
       if (stat.isDirectory) {
-        const result = await window.vibe.gitScan(expanded)
+        const result = await window.vibe.gitInfo(expanded)
         setScan(result)
-        setRepoBranches({})
         setBaseBranch('')
+        if (!result.isRepo || !result.hasCommits) setIsolation('shared')
         if (!nameTouched) {
           setName(expanded.replace(/\/+$/, '').split('/').pop() ?? '')
         }
@@ -111,7 +140,6 @@ export default function LauncherModal(): JSX.Element {
     return () => window.clearTimeout(debounceRef.current)
   }, [path, nameTouched])
 
-  const multi = scan?.kind === 'multi'
   const duplicate =
     pathValid &&
     snapshot.some(
@@ -134,11 +162,8 @@ export default function LauncherModal(): JSX.Element {
         name: name.trim(),
         path: expandedPath,
         panes: kinds.slice(0, count).map((kind) => ({ kind })),
-        useWorktrees,
         baseBranch: baseBranch || null,
-        repos: multi
-          ? scan!.repos.map((r) => ({ dir: r.dir, baseBranch: repoBranches[r.dir] || null }))
-          : undefined,
+        isolation,
         gridCols: cols,
         yolo,
         claudeFlags: claudeFlags.trim() || undefined,
@@ -157,37 +182,53 @@ export default function LauncherModal(): JSX.Element {
     if (folder) setPath(folder)
   }
 
-  const isolationLabel = !useWorktrees
-    ? 'shared folder (no isolation)'
-    : multi
-      ? `.agents mirrors × ${scan!.repos.length} repos`
-      : scan?.kind === 'repo'
-        ? 'detached worktree per agent'
-        : 'git init + worktree per agent'
+  const repoReady = !!scan?.isRepo && scan.hasCommits
+  const isolationLabel = !scan?.isRepo
+    ? 'shared folder (not a repo)'
+    : isolation === 'worktrees'
+      ? 'worktree per agent (detached @ base)'
+      : 'shared checkout · branch off on demand'
 
   const stepInfo = STEPS[step]
+  // On the isolation step the aside mirrors the hovered (else selected) mode,
+  // so illustrations appear on hover without any floating tooltip to clip.
+  const asideInfo =
+    step === 2
+      ? ISO_ASIDE[hoveredIso ?? isolation]
+      : { title: 'How it works', illo: stepInfo.illo, tips: stepInfo.tips }
+  const asideKey = step === 2 ? `iso-${hoveredIso ?? isolation}` : `step-${step}`
 
   return (
     <div className="modal-backdrop" onMouseDown={() => openLauncher(false)}>
       <div className="modal launcher-modal" onMouseDown={(e) => e.stopPropagation()}>
         <div className="stepper">
-          {STEPS.map((s, i) => (
-            <div
-              key={s.label}
-              className={`step ${i === step ? 'active' : ''} ${i < step ? 'done' : ''}`}
-              onClick={() => {
-                if (i < step || (i > step && folderReady)) setStep(i)
-              }}
-            >
-              <span className="step-dot">
-                <Icon name={i < step ? 'check' : s.icon} size={12} />
-              </span>
-              <span className="step-label">{s.label}</span>
-              {i < STEPS.length - 1 && (
-                <span className={`step-line ${i < step ? 'filled' : ''}`} />
-              )}
-            </div>
-          ))}
+          <div
+            className="stepper-track"
+            style={{ '--p': step / (STEPS.length - 1) } as React.CSSProperties}
+          >
+            <i />
+          </div>
+          {STEPS.map((s, i) => {
+            const reachable = i < step || (i > step && folderReady)
+            return (
+              <button
+                key={s.label}
+                type="button"
+                className={`step ${i === step ? 'active' : ''} ${i < step ? 'done' : ''} ${
+                  !reachable && i !== step ? 'locked' : ''
+                }`}
+                aria-current={i === step ? 'step' : undefined}
+                onClick={() => {
+                  if (reachable) setStep(i)
+                }}
+              >
+                <span className="step-dot">
+                  <Icon name={i < step ? 'check' : s.icon} size={12} />
+                </span>
+                <span className="step-label">{s.label}</span>
+              </button>
+            )
+          })}
         </div>
 
         <div className="launcher-columns">
@@ -210,26 +251,20 @@ export default function LauncherModal(): JSX.Element {
                   <div className="status-banner quiet">
                     Type an absolute path — Tab completes folders, like cd
                   </div>
-                ) : scan?.kind === 'repo' ? (
+                ) : scan?.isRepo ? (
                   <div className="status-banner good">
                     <Icon name="check" size={12} />
                     git repo
-                    {scan.info.branch && (
+                    {scan.branch && (
                       <>
                         {' — branch '}
-                        <code>{scan.info.branch}</code>
+                        <code>{scan.branch}</code>
                       </>
                     )}
                   </div>
-                ) : multi ? (
-                  <div className="status-banner good">
-                    <Icon name="branch" size={12} />
-                    {scan!.repos.length} repos detected —{' '}
-                    {scan!.repos.map((r) => r.dir).join(', ')}
-                  </div>
                 ) : (
                   <div className="status-banner caution">
-                    not a git repo — <code>git init</code> runs on launch
+                    not a git repo — agents share the folder without branch isolation
                   </div>
                 )}
 
@@ -273,7 +308,7 @@ export default function LauncherModal(): JSX.Element {
                 <PreviewGrid
                   count={count}
                   kinds={kinds}
-                  useWorktrees={useWorktrees}
+                  isolation={isolation}
                   cols={cols}
                   onCycle={cycleKind}
                 />
@@ -283,64 +318,70 @@ export default function LauncherModal(): JSX.Element {
 
             {step === 2 && (
               <>
-                <label className="check-row">
-                  <input
-                    type="checkbox"
-                    checked={useWorktrees}
-                    onChange={(e) => setUseWorktrees(e.target.checked)}
-                  />
-                  {multi
-                    ? 'Give each agent an isolated mirror of all repos'
-                    : 'Run each agent in its own git worktree'}
-                  <span className="dim"> (alpha stays in the real folder)</span>
-                </label>
+                <div className="isolation-cards">
+                  <button
+                    type="button"
+                    className={`isolation-card ${isolation === 'shared' ? 'selected' : ''}`}
+                    onClick={() => setIsolation('shared')}
+                    onMouseEnter={() => setHoveredIso('shared')}
+                    onMouseLeave={() => setHoveredIso(null)}
+                    onFocus={() => setHoveredIso('shared')}
+                    onBlur={() => setHoveredIso(null)}
+                  >
+                    <span className="iso-check" aria-hidden="true">
+                      <Icon name="check" size={10} />
+                    </span>
+                    <Icon name="folder" size={16} />
+                    <strong>Shared checkout</strong>
+                    <span className="dim">Branch off on demand with ⑂</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`isolation-card ${isolation === 'worktrees' ? 'selected' : ''}`}
+                    disabled={!repoReady}
+                    onClick={() => setIsolation('worktrees')}
+                    onMouseEnter={() => setHoveredIso('worktrees')}
+                    onMouseLeave={() => setHoveredIso(null)}
+                    onFocus={() => setHoveredIso('worktrees')}
+                    onBlur={() => setHoveredIso(null)}
+                  >
+                    <span className="iso-check" aria-hidden="true">
+                      <Icon name="check" size={10} />
+                    </span>
+                    <Icon name="branch" size={16} />
+                    <strong>Worktree per agent</strong>
+                    <span className="dim">
+                      {repoReady
+                        ? 'Isolated from the start'
+                        : 'Needs a git repo with commits'}
+                    </span>
+                  </button>
+                </div>
 
-                {useWorktrees && scan?.kind === 'repo' && scan.info.branches.length > 0 && (
-                  <div className="field-row indent">
-                    <label className="field-label inline">start from branch</label>
+                {scan?.isRepo && scan.branches.length > 0 ? (
+                  <div className="field-row">
+                    <label className="field-label inline">base branch</label>
                     <select
                       value={baseBranch}
                       onChange={(e) => setBaseBranch(e.target.value)}
                     >
-                      <option value="">current ({scan.info.branch ?? 'HEAD'})</option>
-                      {scan.info.branches.map((b) => (
+                      <option value="">auto ({scan.branch ?? 'default'})</option>
+                      {scan.branches.map((b) => (
                         <option key={b} value={b}>
                           {b}
                         </option>
                       ))}
                     </select>
                   </div>
-                )}
-
-                {useWorktrees && multi && (
-                  <div className="repo-list">
-                    {scan!.repos.map((repo) => (
-                      <div className="repo-row" key={repo.dir}>
-                        <code className="repo-name">{repo.dir}/</code>
-                        <select
-                          value={repoBranches[repo.dir] ?? ''}
-                          onChange={(e) =>
-                            setRepoBranches({ ...repoBranches, [repo.dir]: e.target.value })
-                          }
-                        >
-                          <option value="">current ({repo.branch ?? 'HEAD'})</option>
-                          {repo.branches.map((b) => (
-                            <option key={b} value={b}>
-                              {b}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {!useWorktrees && (
+                ) : (
                   <div className="git-line dim">
-                    All agents share the folder directly — fine for reading, risky when
-                    several agents edit at once.
+                    Not a git repo — agents share the folder directly.
                   </div>
                 )}
+                <div className="git-line dim">
+                  Worktrees are cut from the base branch, and diffs always compare
+                  against it.
+                </div>
               </>
             )}
 
@@ -385,8 +426,8 @@ export default function LauncherModal(): JSX.Element {
                     <strong>YOLO mode</strong>
                     <span>
                       claude runs with <code>--dangerously-skip-permissions</code>, codex
-                      with full access and no approvals. Fast, unsupervised — worktree
-                      isolation is your safety net.
+                      with full access and no approvals. Fast, unsupervised — keep an eye
+                      on the diff view.
                     </span>
                   </span>
                 </label>
@@ -411,16 +452,18 @@ export default function LauncherModal(): JSX.Element {
             )}
           </div>
 
-          <aside className="launcher-aside launcher-step" key={`aside-${step}`}>
-            <div className="aside-illo">{stepInfo.illo}</div>
-            <div className="aside-title">How it works</div>
-            <ul className="aside-tips">
-              {stepInfo.tips.map((tip, i) => (
-                <li key={i} style={{ animationDelay: `${80 + i * 60}ms` }}>
-                  {tip}
-                </li>
-              ))}
-            </ul>
+          <aside className="launcher-aside">
+            <div className="aside-content" key={asideKey}>
+              <div className="aside-illo">{asideInfo.illo}</div>
+              <div className="aside-title">{asideInfo.title}</div>
+              <ul className="aside-tips">
+                {asideInfo.tips.map((tip, i) => (
+                  <li key={i} style={{ animationDelay: `${60 + i * 50}ms` }}>
+                    {tip}
+                  </li>
+                ))}
+              </ul>
+            </div>
           </aside>
         </div>
 

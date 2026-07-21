@@ -10,6 +10,9 @@ release/
 *.log
 npm-debug.log*
 
+# Internal working docs (agent plans/specs)
+docs/superpowers/
+
 # Editor / OS
 .DS_Store
 .idea/

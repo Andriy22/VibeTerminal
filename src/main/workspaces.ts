@@ -6,7 +6,8 @@ import type {
   AgentKind,
   PaneRuntime,
   WorkspaceConfig,
-  WorkspaceSnapshot
+  WorkspaceSnapshot,
+  WorktreeStatus
 } from '../shared/types'
 import { buildAgentCommand } from '../shared/commands'
 import { WORKTREES_DIR } from '../shared/worktrees'
@@ -17,8 +18,10 @@ import {
   ensureExcluded,
   fileDiff,
   fileDiffRange,
+  deleteBranchSafe,
   getGitInfo,
   isDirty,
+  isMerged,
   listWorktrees,
   pruneWorktrees,
   removeWorktree,
@@ -437,17 +440,25 @@ export class Workspaces {
     }
   }
 
-  async dirtyWorktrees(id: string): Promise<string[]> {
+  async worktreeStatus(id: string): Promise<WorktreeStatus[]> {
     const config = this.store.getWorkspace(id)
     if (!config) return []
-    const dirty: string[] = []
+    const base = config.baseBranch
+    const result: WorktreeStatus[] = []
     for (const wt of await this.workspaceWorktrees(config)) {
-      if (await isDirty(wt.path)) dirty.push(wt.dir)
+      const ref = wt.branch ?? wt.head
+      result.push({
+        dir: wt.dir,
+        branch: wt.branch,
+        dirty: await isDirty(wt.path),
+        merged: !!(ref && base) && (await isMerged(config.path, ref, base))
+      })
     }
-    return dirty
+    return result
   }
 
-  async close(id: string, options: { removeWorktrees: boolean }): Promise<void> {
+  async close(id: string, options: { remove: string[] }): Promise<void> {
+    const statuses = options.remove.length > 0 ? await this.worktreeStatus(id) : []
     const config = this.store.getWorkspace(id)
     const panes = this.runtime.get(id)
     if (panes) {
@@ -457,12 +468,14 @@ export class Workspaces {
       this.runtime.delete(id)
     }
     if (config) {
-      if (options.removeWorktrees) {
-        for (const wt of await this.workspaceWorktrees(config)) {
-          await removeWorktree(config.path, wt.dir).catch(() => {})
+      for (const dir of options.remove) {
+        const status = statuses.find((w) => w.dir === dir)
+        await removeWorktree(config.path, dir).catch(() => {})
+        if (status?.branch && status.merged) {
+          await deleteBranchSafe(config.path, status.branch)
         }
-        await pruneWorktrees(config.path)
       }
+      if (options.remove.length > 0) await pruneWorktrees(config.path)
       config.wasRunning = false
       this.store.upsertWorkspace(config)
     }
@@ -484,7 +497,7 @@ export class Workspaces {
     config.yolo = yolo
     this.store.upsertWorkspace(config)
     if (this.runtime.get(id)?.size) {
-      await this.close(id, { removeWorktrees: false })
+      await this.close(id, { remove: [] })
       await this.launch(id)
     }
     this.notify()
@@ -513,8 +526,8 @@ export class Workspaces {
     this.notify()
   }
 
-  async deleteWorkspace(id: string, removeWorktrees: boolean): Promise<void> {
-    await this.close(id, { removeWorktrees })
+  async deleteWorkspace(id: string, remove: string[]): Promise<void> {
+    await this.close(id, { remove })
     this.store.deleteWorkspace(id)
     this.notify()
   }

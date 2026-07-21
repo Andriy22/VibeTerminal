@@ -155,6 +155,14 @@ export interface ChangeGroup {
   changes: ChangedFile[]
 }
 
+/** One discovered worktree under the workspace folder, for the cleanup dialogs. */
+export interface WorktreeStatus {
+  dir: string
+  branch: string | null
+  dirty: boolean
+  merged: boolean
+}
+
 /** Renderer → pty host (over MessagePort) */
 export type PtyInMessage =
   | { type: 'write'; ptyId: string; data: string }

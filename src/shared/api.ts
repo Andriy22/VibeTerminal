@@ -9,7 +9,8 @@ import type {
   RepoChoice,
   Settings,
   UsageSnapshot,
-  WorkspaceSnapshot
+  WorkspaceSnapshot,
+  WorktreeStatus
 } from './types'
 import type { MemoryNote, MemoryNoteMeta, MemorySearchHit } from './memoryFiles'
 
@@ -38,8 +39,8 @@ export interface VibeApi {
   snapshot: () => Promise<WorkspaceSnapshot[]>
   createWorkspace: (draft: WorkspaceDraftDto) => Promise<string>
   launchWorkspace: (id: string) => Promise<void>
-  closeWorkspace: (id: string, removeWorktrees: boolean) => Promise<void>
-  deleteWorkspace: (id: string, removeWorktrees: boolean) => Promise<void>
+  closeWorkspace: (id: string, remove: string[]) => Promise<void>
+  deleteWorkspace: (id: string, remove: string[]) => Promise<void>
   renameWorkspace: (id: string, name: string) => Promise<void>
   setGridCols: (id: string, cols: number | null) => Promise<void>
   setWorkspaceColor: (id: string, color: string | null) => Promise<void>
@@ -76,7 +77,7 @@ export interface VibeApi {
     file: string,
     mode: string
   ) => Promise<string>
-  dirtyWorktrees: (id: string) => Promise<string[]>
+  worktreeStatus: (id: string) => Promise<WorktreeStatus[]>
   addPane: (id: string, kind: AgentKind) => Promise<void>
   removePane: (id: string, paneId: string) => Promise<void>
   restartPane: (id: string, paneId: string) => Promise<void>

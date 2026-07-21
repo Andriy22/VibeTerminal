@@ -40,6 +40,8 @@ npm test            # Vitest unit tests must pass
 npm run dev         # manually verify your change in the running app
 ```
 
+CI runs the same typecheck and tests on every pull request, and a merge to `main` triggers the release workflow that builds and publishes a DMG — so a red check on your PR blocks the release train for everyone.
+
 ## Submitting a pull request
 
 1. Fork the repo and create a branch from `main` (`fix/pane-restart-crash`, `feat/linux-support`).

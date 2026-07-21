@@ -4,6 +4,8 @@
 
 Run several AI coding agents — Claude Code, Codex, or plain shells — side by side in one native window. Each agent can work in its own isolated git worktree, so parallel agents never step on each other's changes. Workspaces persist across restarts, and every agent shares a searchable project memory.
 
+[![CI](https://github.com/Andriy22/VibeTerminal/actions/workflows/ci.yml/badge.svg)](https://github.com/Andriy22/VibeTerminal/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/Andriy22/VibeTerminal)](https://github.com/Andriy22/VibeTerminal/releases/latest)
 ![Platform](https://img.shields.io/badge/platform-macOS-black)
 ![Electron](https://img.shields.io/badge/Electron-33-47848F?logo=electron&logoColor=white)
 ![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
@@ -67,9 +69,15 @@ When worktree isolation is on, each agent pane runs in `.worktrees/<callsign>` (
 
 ## Getting started
 
+### Download
+
+Grab the latest `.dmg` from the [Releases page](https://github.com/Andriy22/VibeTerminal/releases/latest) — every merge to `main` publishes a fresh build automatically, and the three most recent versions stay available.
+
+Builds are currently unsigned, so on first launch right-click the app and choose **Open** to get past Gatekeeper.
+
 ### Requirements
 
-- macOS (Apple Silicon; Intel should work but is untested)
+- macOS (Apple Silicon; Intel should work but is untested — Linux and Windows are [on the roadmap](#roadmap))
 - Node.js 20+
 - git
 - The agent CLIs you plan to use: [Claude Code](https://docs.claude.com/en/docs/claude-code) and/or [Codex](https://github.com/openai/codex) — plain shell panes work without either
@@ -121,6 +129,19 @@ Everything lives in the app's Settings panel:
 - Usage meter display (5-hour window, weekly, or both)
 - OpenAI API key + hotkey for voice dictation
 - Project memory on/off for newly launched agents
+
+## Roadmap
+
+Where the project is headed, roughly in priority order:
+
+- [ ] **Linux support** — the PTY host and worktree engine are already platform-agnostic; the vibrancy-based UI needs a non-macOS fallback.
+- [ ] **Windows support** — ConPTY via node-pty, path handling, and installer packaging.
+- [ ] **UI improvements** — drag-to-reorder panes, resizable splits, better behavior in small windows, more themes.
+- [ ] **Git operations from the app** — commit an agent's work, merge its branch back into the base, resolve conflicts, and open pull requests without leaving the workspace.
+- [ ] **Auto-update** — in-app updates fed by the GitHub Releases pipeline.
+- [ ] **More agent types** — pluggable pane commands beyond Claude Code and Codex (Gemini CLI, OpenCode, custom commands).
+
+Disagree with the priorities, or missing something? [Open a feature request](https://github.com/Andriy22/VibeTerminal/issues/new?template=feature_request.yml) or start a thread in [Discussions](https://github.com/Andriy22/VibeTerminal/discussions) — the roadmap is driven by real usage.
 
 ## Contributing
 

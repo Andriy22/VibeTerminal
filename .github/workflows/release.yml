@@ -1,0 +1,66 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# One release build at a time; queued, never cancelled mid-publish.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  build-and-release:
+    name: Build & publish macOS build
+    runs-on: macos-latest
+    env:
+      # No signing certs in CI — skip identity discovery, ship unsigned.
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Unit tests
+        run: npm test
+      - name: Build app bundles
+        run: npx electron-vite build
+      - name: Package DMG
+        run: npx electron-builder --mac --publish never
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          TAG="v$VERSION"
+          DMG=$(ls release/*.dmg | head -n 1)
+          echo "Publishing $DMG as $TAG"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            # Same version merged again — refresh the existing release's asset.
+            gh release upload "$TAG" "$DMG" --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$TAG" "$DMG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "VibeTerminal $VERSION" \
+              --generate-notes
+          fi
+      - name: Keep only the 3 latest releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release list --repo "$GITHUB_REPOSITORY" --limit 100 \
+            --json tagName,createdAt \
+            --jq 'sort_by(.createdAt) | reverse | .[3:] | .[].tagName' |
+          while read -r tag; do
+            echo "Pruning old release $tag"
+            gh release delete "$tag" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes
+          done

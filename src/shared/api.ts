@@ -3,7 +3,6 @@ import type {
   ChangeGroup,
   FsEntry,
   GitInfo,
-  GitScan,
   PathSuggestion,
   ReadFileResult,
   Settings,
@@ -30,7 +29,6 @@ export interface VibeApi {
   expandPath: (input: string) => Promise<string>
   statPath: (input: string) => Promise<{ isDirectory: boolean }>
   gitInfo: (path: string) => Promise<GitInfo>
-  gitScan: (path: string) => Promise<GitScan>
   pickFolder: () => Promise<string | null>
 
   snapshot: () => Promise<WorkspaceSnapshot[]>

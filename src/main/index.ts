@@ -9,7 +9,7 @@ import {
 import { existsSync, statSync } from 'fs'
 import { join } from 'path'
 import type { AgentKind, Settings } from '../shared/types'
-import { getGitInfo, scanGit } from './git'
+import { getGitInfo } from './git'
 import { suggestPaths, expandTilde } from './pathComplete'
 import { listDir, readFileSmart, writeFileSmart } from './fsops'
 import { PtyHostManager } from './ptyHostManager'
@@ -87,7 +87,6 @@ function registerIpc(): void {
     }
   })
   ipcMain.handle('git:info', (_e, path: string) => getGitInfo(path))
-  ipcMain.handle('git:scan', (_e, path: string) => scanGit(path))
 
   ipcMain.handle('dialog:pick-folder', async () => {
     if (!mainWindow) return null

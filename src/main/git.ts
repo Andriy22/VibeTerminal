@@ -1,8 +1,8 @@
 import { execFile } from 'child_process'
-import { appendFileSync, existsSync, readdirSync, readFileSync } from 'fs'
+import { appendFileSync, existsSync, readFileSync } from 'fs'
 import { join } from 'path'
 import { promisify } from 'util'
-import type { GitInfo, GitScan, RepoInfo } from '../shared/types'
+import type { GitInfo } from '../shared/types'
 import { parseWorktreeList, type WorktreeEntry } from '../shared/worktrees'
 
 const execFileAsync = promisify(execFile)
@@ -48,45 +48,6 @@ export async function getGitInfo(path: string): Promise<GitInfo> {
   }
 }
 
-/**
- * Inspect a folder: a repo itself, a container of child repos, or neither.
- * Embedded child repos win over the parent being a repo: git doesn't track
- * embedded repo contents, so worktrees of such a parent would be empty —
- * per-repo mirrors are the only isolation that actually contains the code.
- */
-export async function scanGit(path: string): Promise<GitScan> {
-  const info = await getGitInfo(path)
-  const repos: RepoInfo[] = []
-  try {
-    for (const entry of readdirSync(path, { withFileTypes: true })) {
-      if (!entry.isDirectory() || entry.name.startsWith('.')) continue
-      if (!existsSync(join(path, entry.name, '.git'))) continue
-      const child = await getGitInfo(join(path, entry.name))
-      if (child.isRepo) {
-        repos.push({ dir: entry.name, branch: child.branch, branches: child.branches })
-      }
-    }
-  } catch {
-    // unreadable folder — treat as no repos
-  }
-  repos.sort((a, b) => a.dir.localeCompare(b.dir))
-  if (repos.length > 0) return { kind: 'multi', info, repos }
-  if (info.isRepo) return { kind: 'repo', info, repos: [] }
-  return { kind: 'none', info, repos }
-}
-
-/** Make sure `path` is a git repo with at least one commit (worktrees need one). */
-export async function ensureRepo(path: string): Promise<void> {
-  const info = await getGitInfo(path)
-  if (!info.isRepo) await git(path, 'init')
-  if (!info.hasCommits) {
-    const head = await tryGit(path, 'rev-parse', '--verify', 'HEAD')
-    if (head === null) {
-      await git(path, 'commit', '--allow-empty', '-m', 'init (vibeterminal)')
-    }
-  }
-}
-
 /** Keep .worktrees/ out of git status without touching the project's .gitignore. */
 export function ensureExcluded(repoPath: string, pattern: string): void {
   const excludeFile = join(repoPath, '.git', 'info', 'exclude')
@@ -98,19 +59,6 @@ export function ensureExcluded(repoPath: string, pattern: string): void {
   } catch {
     // .git may be a file (worktree/submodule) — non-fatal, status just gets noisy
   }
-}
-
-/**
- * Detached worktree at the base branch's commit — same code state, no new
- * branch (git forbids the same branch in two worktrees). Commits made inside
- * are preserved via HEAD/reflog until a branch is created for them.
- */
-export async function addWorktree(
-  repoPath: string,
-  dir: string,
-  base: string
-): Promise<void> {
-  await git(repoPath, 'worktree', 'add', '--detach', dir, base)
 }
 
 export async function removeWorktree(repoPath: string, dir: string): Promise<void> {

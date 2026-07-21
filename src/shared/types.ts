@@ -5,25 +5,13 @@ export interface PaneConfig {
   kind: AgentKind
 }
 
-/** One repo inside a multi-repo workspace folder. */
-export interface RepoChoice {
-  /** Directory name relative to the workspace folder. */
-  dir: string
-  /** Branch worktrees are cut from. null = that repo's current branch. */
-  baseBranch: string | null
-}
-
 export interface WorkspaceConfig {
   id: string
   name: string
   path: string
   panes: PaneConfig[]
-  /** @deprecated dead field from the eager-worktree model — stripped on load. */
-  useWorktrees?: boolean
-  /** Branch worktrees are cut from. null = branch that was current at launch. */
+  /** Diff base: committed changes are measured against this branch. Pinned at creation. */
   baseBranch: string | null
-  /** Non-empty = multi-repo folder: agents get .agents/<callsign> mirrors. */
-  repos?: RepoChoice[]
   /** Fixed grid column count. null/undefined = auto (2-column rows). */
   gridCols?: number | null
   /** Accent color. null/undefined = group color, else stable auto color. */
@@ -100,20 +88,6 @@ export interface GitInfo {
   branch: string | null
   branches: string[]
   hasCommits: boolean
-}
-
-export interface RepoInfo {
-  dir: string
-  branch: string | null
-  branches: string[]
-}
-
-/** Result of inspecting a folder chosen in the launcher. */
-export interface GitScan {
-  /** 'repo' = folder is a repo; 'multi' = contains child repos; 'none' = neither. */
-  kind: 'repo' | 'multi' | 'none'
-  info: GitInfo
-  repos: RepoInfo[]
 }
 
 export interface PathSuggestion {

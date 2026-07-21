@@ -13,7 +13,6 @@ const api: VibeApi = {
   expandPath: (input) => ipcRenderer.invoke('path:expand', input),
   statPath: (input) => ipcRenderer.invoke('path:stat', input),
   gitInfo: (path) => ipcRenderer.invoke('git:info', path),
-  gitScan: (path) => ipcRenderer.invoke('git:scan', path),
   pickFolder: () => ipcRenderer.invoke('dialog:pick-folder'),
 
   snapshot: () => ipcRenderer.invoke('ws:snapshot'),

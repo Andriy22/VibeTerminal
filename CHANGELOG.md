@@ -15,6 +15,12 @@ This file is the single source of truth for the in-app "What's new" screen
 ### Added
 - In-app changelog: a **What's new** screen next to Settings (and behind the version badge) showing what was added, fixed, reworked, and removed in every release — with an unread dot after each update.
 
+### Reworked
+- **What's new** list: the scroll edges fade, each retracting once you actually reach that end, and scrolling no longer chains into the workspace behind the modal.
+
+### Fixed
+- Every release's *Fixed* section escaped the **What's new** modal and pinned itself across the bottom of the window, staying put while the rest of the list scrolled: the category chip class was named after the heading, and `fixed` collided with Tailwind's `position: fixed` utility. Category classes are now prefixed (`cat-fixed`).
+
 ## [0.2.0] — 2026-07-21
 
 ### Added

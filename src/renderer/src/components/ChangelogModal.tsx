@@ -5,12 +5,14 @@ import { useApp } from '../store'
 
 const RELEASES = parseChangelog(changelogSource)
 
-/** Chip color per section heading — unknown headings stay neutral. */
+/** Chip color per section heading — unknown headings stay neutral.
+    Prefixed so the names never collide with a Tailwind utility (`fixed`
+    is `position: fixed`, which tore the section out of the modal). */
 const CATEGORY_CLASS: Record<string, string> = {
-  added: 'added',
-  fixed: 'fixed',
-  reworked: 'reworked',
-  removed: 'removed'
+  added: 'cat-added',
+  fixed: 'cat-fixed',
+  reworked: 'cat-reworked',
+  removed: 'cat-removed'
 }
 
 /** Render the `**bold**`, `*italic*` and `` `code` `` spans of a changelog line. */

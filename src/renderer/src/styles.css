@@ -2980,9 +2980,55 @@ button.brand-version:hover {
   font-size: 11.5px;
 }
 
+/* The scroll edges of the release list. Each fade retracts to 0 at the end it
+   belongs to, so the list looks bounded mid-scroll but nothing is dimmed once
+   you have actually reached the top or the bottom. */
+@property --fade-top {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --fade-bottom {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
+@keyframes changelog-scroll-edges {
+  0% {
+    --fade-top: 0px;
+    --fade-bottom: 24px;
+  }
+  6%,
+  94% {
+    --fade-top: 24px;
+    --fade-bottom: 24px;
+  }
+  100% {
+    --fade-top: 24px;
+    --fade-bottom: 0px;
+  }
+}
+
 .changelog-body {
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  padding: 2px 20px 16px;
+  /* Don't hand the scroll to the workspace behind once the list bottoms out. */
+  overscroll-behavior: contain;
+  padding: 10px 20px 16px;
+  /* Soften the cut where content passes the header rule and the card's bottom
+     edge — without this, lines are sliced mid-glyph and read as a clipping bug. */
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--fade-top),
+    #000 calc(100% - var(--fade-bottom)),
+    transparent 100%
+  );
+  animation: changelog-scroll-edges linear both;
+  animation-timeline: scroll(self block);
 }
 
 .changelog-release {
@@ -3036,19 +3082,19 @@ button.brand-version:hover {
   --cat: var(--text-dim);
 }
 
-.changelog-section.added {
+.changelog-section.cat-added {
   --cat: var(--ok);
 }
 
-.changelog-section.fixed {
+.changelog-section.cat-fixed {
   --cat: var(--codex);
 }
 
-.changelog-section.reworked {
+.changelog-section.cat-reworked {
   --cat: var(--warn);
 }
 
-.changelog-section.removed {
+.changelog-section.cat-removed {
   --cat: var(--danger);
 }
 

@@ -6,7 +6,6 @@ import type {
   GitScan,
   PathSuggestion,
   ReadFileResult,
-  RepoChoice,
   Settings,
   UsageSnapshot,
   WorkspaceSnapshot,
@@ -18,9 +17,7 @@ export interface WorkspaceDraftDto {
   name: string
   path: string
   panes: { kind: AgentKind }[]
-  useWorktrees: boolean
   baseBranch: string | null
-  repos?: RepoChoice[]
   gridCols?: number | null
   yolo?: boolean
   claudeFlags?: string

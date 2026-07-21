@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { AgentKind, GitScan } from '@shared/types'
+import type { AgentKind, GitInfo } from '@shared/types'
 import { useApp } from '../store'
 import { kindSummary, nextKind } from '../kinds'
 import PathInput from './PathInput'
@@ -25,8 +25,8 @@ const STEPS = [
     illo: <IlloApp />,
     tips: [
       'Type an absolute path like in a shell — Tab and ↑↓ complete folders.',
-      'Git is detected automatically: a single repo, a folder of repos, or neither (git init on launch).',
-      'Multi-repo folders unlock per-agent mirrors of every repo.'
+      'Git is detected automatically — repo or plain folder, nothing is created for you.',
+      'The same folder can host several workspaces with different names.'
     ]
   },
   {
@@ -41,14 +41,14 @@ const STEPS = [
     ]
   },
   {
-    label: 'Isolation',
+    label: 'Branches',
     icon: 'branch',
-    desc: 'How agents are kept from stepping on each other.',
+    desc: 'Which branch diffs and reviews compare against.',
     illo: <IlloBranches />,
     tips: [
-      'Alpha works in your real checkout; every other agent gets its own worktree.',
-      'Worktrees start detached at your chosen branch — identical code, no branch clutter.',
-      'Agents create a branch only when they commit something worth keeping.'
+      'Everything runs in your real checkout until you say otherwise.',
+      'Branch off any pane into .worktrees/<task> when work needs isolation.',
+      'Diffs always compare against the base branch you pick here.'
     ]
   },
   {
@@ -73,13 +73,11 @@ export default function LauncherModal(): JSX.Element {
   const [path, setPath] = useState('~/')
   const [expandedPath, setExpandedPath] = useState('')
   const [pathValid, setPathValid] = useState(false)
-  const [scan, setScan] = useState<GitScan | null>(null)
+  const [scan, setScan] = useState<GitInfo | null>(null)
   const [count, setCount] = useState(4)
   const [kinds, setKinds] = useState<AgentKind[]>(Array(8).fill('claude'))
   const [cols, setCols] = useState<number | null>(null)
-  const [useWorktrees, setUseWorktrees] = useState(true)
   const [baseBranch, setBaseBranch] = useState('')
-  const [repoBranches, setRepoBranches] = useState<Record<string, string>>({})
   const [yolo, setYolo] = useState(false)
   const [name, setName] = useState('')
   const [nameTouched, setNameTouched] = useState(false)
@@ -97,9 +95,8 @@ export default function LauncherModal(): JSX.Element {
       setExpandedPath(expanded)
       setPathValid(stat.isDirectory)
       if (stat.isDirectory) {
-        const result = await window.vibe.gitScan(expanded)
+        const result = await window.vibe.gitInfo(expanded)
         setScan(result)
-        setRepoBranches({})
         setBaseBranch('')
         if (!nameTouched) {
           setName(expanded.replace(/\/+$/, '').split('/').pop() ?? '')
@@ -111,7 +108,6 @@ export default function LauncherModal(): JSX.Element {
     return () => window.clearTimeout(debounceRef.current)
   }, [path, nameTouched])
 
-  const multi = scan?.kind === 'multi'
   const duplicate =
     pathValid &&
     snapshot.some(
@@ -134,11 +130,7 @@ export default function LauncherModal(): JSX.Element {
         name: name.trim(),
         path: expandedPath,
         panes: kinds.slice(0, count).map((kind) => ({ kind })),
-        useWorktrees,
         baseBranch: baseBranch || null,
-        repos: multi
-          ? scan!.repos.map((r) => ({ dir: r.dir, baseBranch: repoBranches[r.dir] || null }))
-          : undefined,
         gridCols: cols,
         yolo,
         claudeFlags: claudeFlags.trim() || undefined,
@@ -157,13 +149,9 @@ export default function LauncherModal(): JSX.Element {
     if (folder) setPath(folder)
   }
 
-  const isolationLabel = !useWorktrees
-    ? 'shared folder (no isolation)'
-    : multi
-      ? `.agents mirrors × ${scan!.repos.length} repos`
-      : scan?.kind === 'repo'
-        ? 'detached worktree per agent'
-        : 'git init + worktree per agent'
+  const isolationLabel = scan?.isRepo
+    ? 'shared checkout · branch off on demand'
+    : 'shared folder (not a repo)'
 
   const stepInfo = STEPS[step]
 
@@ -210,26 +198,20 @@ export default function LauncherModal(): JSX.Element {
                   <div className="status-banner quiet">
                     Type an absolute path — Tab completes folders, like cd
                   </div>
-                ) : scan?.kind === 'repo' ? (
+                ) : scan?.isRepo ? (
                   <div className="status-banner good">
                     <Icon name="check" size={12} />
                     git repo
-                    {scan.info.branch && (
+                    {scan.branch && (
                       <>
                         {' — branch '}
-                        <code>{scan.info.branch}</code>
+                        <code>{scan.branch}</code>
                       </>
                     )}
                   </div>
-                ) : multi ? (
-                  <div className="status-banner good">
-                    <Icon name="branch" size={12} />
-                    {scan!.repos.length} repos detected —{' '}
-                    {scan!.repos.map((r) => r.dir).join(', ')}
-                  </div>
                 ) : (
                   <div className="status-banner caution">
-                    not a git repo — <code>git init</code> runs on launch
+                    not a git repo — agents share the folder without branch isolation
                   </div>
                 )}
 
@@ -270,77 +252,37 @@ export default function LauncherModal(): JSX.Element {
                   <span className="inline-label">grid columns</span>
                   <Segmented options={COL_OPTIONS} value={cols} onChange={setCols} />
                 </div>
-                <PreviewGrid
-                  count={count}
-                  kinds={kinds}
-                  useWorktrees={useWorktrees}
-                  cols={cols}
-                  onCycle={cycleKind}
-                />
+                <PreviewGrid count={count} kinds={kinds} cols={cols} onCycle={cycleKind} />
                 <div className="git-line dim">Click a cell to switch its agent type.</div>
               </>
             )}
 
             {step === 2 && (
               <>
-                <label className="check-row">
-                  <input
-                    type="checkbox"
-                    checked={useWorktrees}
-                    onChange={(e) => setUseWorktrees(e.target.checked)}
-                  />
-                  {multi
-                    ? 'Give each agent an isolated mirror of all repos'
-                    : 'Run each agent in its own git worktree'}
-                  <span className="dim"> (alpha stays in the real folder)</span>
-                </label>
-
-                {useWorktrees && scan?.kind === 'repo' && scan.info.branches.length > 0 && (
-                  <div className="field-row indent">
-                    <label className="field-label inline">start from branch</label>
+                {scan?.isRepo && scan.branches.length > 0 ? (
+                  <div className="field-row">
+                    <label className="field-label inline">diff base branch</label>
                     <select
                       value={baseBranch}
                       onChange={(e) => setBaseBranch(e.target.value)}
                     >
-                      <option value="">current ({scan.info.branch ?? 'HEAD'})</option>
-                      {scan.info.branches.map((b) => (
+                      <option value="">auto ({scan.branch ?? 'default'})</option>
+                      {scan.branches.map((b) => (
                         <option key={b} value={b}>
                           {b}
                         </option>
                       ))}
                     </select>
                   </div>
-                )}
-
-                {useWorktrees && multi && (
-                  <div className="repo-list">
-                    {scan!.repos.map((repo) => (
-                      <div className="repo-row" key={repo.dir}>
-                        <code className="repo-name">{repo.dir}/</code>
-                        <select
-                          value={repoBranches[repo.dir] ?? ''}
-                          onChange={(e) =>
-                            setRepoBranches({ ...repoBranches, [repo.dir]: e.target.value })
-                          }
-                        >
-                          <option value="">current ({repo.branch ?? 'HEAD'})</option>
-                          {repo.branches.map((b) => (
-                            <option key={b} value={b}>
-                              {b}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {!useWorktrees && (
+                ) : (
                   <div className="git-line dim">
-                    All agents share the folder directly — fine for reading, risky when
-                    several agents edit at once.
+                    Not a git repo — agents share the folder directly.
                   </div>
                 )}
+                <div className="git-line dim">
+                  Agents work in your checkout. When two tasks overlap, hit ⑂ on a pane
+                  (or just ask the agent) to branch off into an isolated worktree.
+                </div>
               </>
             )}
 
@@ -385,8 +327,8 @@ export default function LauncherModal(): JSX.Element {
                     <strong>YOLO mode</strong>
                     <span>
                       claude runs with <code>--dangerously-skip-permissions</code>, codex
-                      with full access and no approvals. Fast, unsupervised — worktree
-                      isolation is your safety net.
+                      with full access and no approvals. Fast, unsupervised — keep an eye
+                      on the diff view.
                     </span>
                   </span>
                 </label>

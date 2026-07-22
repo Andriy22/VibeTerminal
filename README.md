@@ -18,24 +18,23 @@ Run several AI coding agents — Claude Code, Codex, or plain shells — side by
 
 **▶ [Watch the 60-second demo](https://github.com/Andriy22/VibeTerminal/releases/download/v0.3.0/vibeterminal-promo.mp4)** — the launcher, themes and glass, live usage meters, project memory, and voice dictation. (12 MB MP4)
 
-<details>
-<summary>More screenshots</summary>
+### Launcher
 
-**Launcher** — pick a folder, how many agents of which kind, and how they're isolated.
+Pick a folder, how many agents of which kind, and how they're isolated.
 
 ![Launcher](docs/screenshots/launcher.png)
 
-**Appearance** — ten themes and four glass levels, applied to the whole window instantly.
+### Appearance
+
+Ten themes and four glass levels, applied to the whole window instantly.
 
 ![Themes](docs/screenshots/themes.png)
 
-**Project memory** — every agent's notes, as a searchable list or a link graph.
+### Project memory
+
+Every agent's notes, as a searchable list or a link graph.
 
 ![Memory](docs/screenshots/memory.png)
-
-</details>
-
-The video is generated, not recorded: it's a [Remotion](https://remotion.dev) project in [`promo/`](promo/) that rebuilds the UI from the app's own design tokens, with a music bed synthesised from scratch. Re-render it any time with `cd promo && npm install && npm run render`.
 
 ## Why VibeTerminal?
 

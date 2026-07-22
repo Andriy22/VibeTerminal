@@ -10,7 +10,7 @@ This file is the single source of truth for the in-app "What's new" screen
   - bullet (inline **bold**, *italic* and `code` are rendered)
 -->
 
-## [Unreleased]
+## [0.3.0] — 2026-07-22
 
 ### Added
 - In-app changelog: a **What's new** screen next to Settings (and behind the version badge) showing what was added, fixed, reworked, and removed in every release — with an unread dot after each update.

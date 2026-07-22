@@ -12,7 +12,29 @@ Run several AI coding agents — Claude Code, Codex, or plain shells — side by
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?logo=typescript&logoColor=white)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-> 🎬 Demo video and screenshots coming soon.
+## Demo
+
+[![Watch the demo](docs/screenshots/promo-poster.png)](https://github.com/Andriy22/VibeTerminal/releases/download/v0.3.0/vibeterminal-promo.mp4)
+
+**▶ [Watch the 60-second demo](https://github.com/Andriy22/VibeTerminal/releases/download/v0.3.0/vibeterminal-promo.mp4)** — the launcher, themes and glass, live usage meters, project memory, and voice dictation. (12 MB MP4)
+
+### Launcher
+
+Pick a folder, how many agents of which kind, and how they're isolated.
+
+![Launcher](docs/screenshots/launcher.png)
+
+### Appearance
+
+Ten themes and four glass levels, applied to the whole window instantly.
+
+![Themes](docs/screenshots/themes.png)
+
+### Project memory
+
+Every agent's notes, as a searchable list or a link graph.
+
+![Memory](docs/screenshots/memory.png)
 
 ## Why VibeTerminal?
 
